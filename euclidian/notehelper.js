@@ -13,6 +13,8 @@
 /*  - 15/2/23: v2.0.0 using unicode for accidentals and heads instead of images
 /*  - 26/2/23: v2.0.1 protection of methods
 /*  - 26/2/23: v2.0.1 documentation
+/*  - 5/3/23: v2.0.2 correct length across bars
+/*  - 6/3/23: v2.0.2 some refactoring and documentation
 /**********************************************/
 // -----------------------------------------------------------------------
 // --- Vesionning-----------------------------------------
@@ -22,7 +24,7 @@ function checktVersion(expected) {
     return checkVersion(expected);
 }
 function checkVersion(expected) {
-    var version = "2.0.1";
+    var version = "2.0.2";
 
     var aV = version.split('.').map(function (v) {
         return parseInt(v);
@@ -221,10 +223,17 @@ function buildPitchedNote(noteName, accidental) {
 }
 
 /**
- * keepRestDuration: duration|boolean|undefined 
+ * Transform a rest into a single note.
+ * @param rest: an element of type Element.REST to transform into a note
+ * @param toNote: a note definition: int|note definition
+ * * int: a pitch
+ * * note definition: @see #changeNote 
+ * @param keepRestDuration: duration|boolean|undefined 
  * * duration: on the form of duration.numerator, duration.denominator : the duration to force
  * * boolean==true: keep the rest duration
  * * boolean==false | undefined: the duration will be quarter
+ *
+ * @return an element of type Element.NOTE created on that rest
  */
 function restToNote(rest, toNote, keepRestDuration) {
     if(!rest || !toNote)  { 
@@ -239,49 +248,37 @@ function restToNote(rest, toNote, keepRestDuration) {
 
     var duration;
 
-    if (toNote === parseInt(toNote))
-        toNote = {
+    var notes=[];
+    notes.push((toNote === parseInt(toNote))?
+        {
             "pitch": toNote,
             "concertPitch": false,
             "sharp_mode": true
-        };
+        }:toNote);
+        
+    
+    var chord=restToChord(rest, notes, keepRestDuration);
+    
+    if(chord.notes && chord.notes.length>0) return chord.notes[0];
+    else return undefined;
 
-    // For compatibility
-    if (typeof keepRestDuration === 'undefined')
-        duration = undefined;
-    else if (typeof keepRestDuration === 'boolean') {
-        if (keepRestDuration) {
-            duration = rest.duration;
-        }
-
-    } else
-        duration = keepRestDuration;
-
-    //console.log("==ON A REST==");
-    var cur_time = rest.parent.tick; // getting rest's segment's tick
-    var oCursor = curScore.newCursor();
-    oCursor.track = rest.track;
-
-    if (duration) {
-        oCursor.setDuration(duration.numerator, duration.denominator);
-    }
-    oCursor.rewindToTick(cur_time);
-    oCursor.addNote(toNote.pitch);
-    oCursor.rewindToTick(cur_time);
-    var chord = oCursor.element;
-    var note = chord.notes[0];
-
-    //debugPitch(level_DEBUG,"Added note",note);
-
-    changeNote(note, toNote);
-
-    //debugPitch(level_DEBUG,"Corrected note",note);
-
-
-    return note;
 }
 
+/**
+ * Transform a rest into a serie of notes (i.e. a chord).
+ * @param rest: an element of type Element.REST to transform into a note
+ * @param toNotes: an array of note definitions, defined by : int|note definition
+ * * int: a pitch
+ * * note definition: @see #changeNote 
+ * @param keepRestDuration: duration|boolean|undefined 
+ * * duration: on the form of duration.numerator, duration.denominator : the duration to force
+ * * boolean==true: keep the rest duration
+ * * boolean==false | undefined: the duration will be quarter
+ *
+ * @return an element of type Element.CHORD created on that rest
+ */
 function restToChord(rest, toNotes, keepRestDuration) {
+    // checks
     if(!rest || !toNotes)  { 
         console.warn("restToChord: null arguments");
         return;
@@ -292,7 +289,7 @@ function restToChord(rest, toNotes, keepRestDuration) {
         return;
     }
 
-    
+    // notes to add
     var notes = toNotes.map(function (n) {
         if (n === parseInt(n)) {
             return {
@@ -304,16 +301,58 @@ function restToChord(rest, toNotes, keepRestDuration) {
             return n;
         }
     });
+    
+    // duration to use
+    var duration=undefined;
+    if (typeof keepRestDuration === 'undefined') {
+        console.log("keepRestDuration=undefined");
+        duration = undefined;
+    }
+    else if (typeof keepRestDuration === 'boolean') {
+        console.log("keepRestDuration=boolean: "+keepRestDuration);
+        if (keepRestDuration) {
+            duration = rest.duration;
+        }
 
+    } else {
+        console.log("keepRestDuration provided. Using "+keepRestDuration);
+        duration = keepRestDuration;
+    }
+
+    if (!duration) {
+        duration=fraction(1,4);
+        console.log("keepRestDuration undefined. Forcing a value");
+    }
+    console.log("Ending up with duration = "+(duration.str?duration.str:duration));
+    
+    // Adding the first note
+    var toNote=toNotes[0];
+    //console.log("==ON A REST==");
+    var cur_time = rest.parent.tick; // getting rest's segment's tick
+    var oCursor = curScore.newCursor();
+    oCursor.track = rest.track;
+
+    oCursor.setDuration(duration.numerator, duration.denominator);
+    oCursor.rewindToTick(cur_time);
+    oCursor.addNote(toNote.pitch);
+    oCursor.rewindToTick(cur_time);
+    
+    var chord = oCursor.element;
+    var note = chord.notes[0];
+
+    console.log("Expected duration: %1, current duration %2".arg(duration?duration.str:"??").arg(chord.duration?chord.duration.str:"??"));
+
+    changeNote(note, toNote);
+
+   
     //console.log("Dealing with note "+0+": "+notes[0].pitch);
-    restToNote(rest, notes[0], keepRestDuration);
+    // restToNote(rest, notes[0], keepRestDuration);
 
+    // adding the other notes
     for (var i = 1; i < notes.length; i++) {
         var dest = notes[i];
         //console.log("Dealing with note "+i+": "+dest.pitch);
         var cur_time = rest.parent.tick; // getting rest's segment's tick
-        var oCursor = curScore.newCursor();
-        oCursor.track = rest.track;
         oCursor.rewindToTick(cur_time);
         oCursor.addNote(dest.pitch, true); // addToChord=true
         oCursor.rewindToTick(cur_time);
@@ -324,23 +363,42 @@ function restToChord(rest, toNotes, keepRestDuration) {
         //debugPitch(level_DEBUG,"Added note",note);
 
         NoteHelper.changeNote(note, dest);
-
     }
 
-    return note;
+    var remaining=durationTo64(duration)-durationTo64(chord.duration);
+    console.log("- expected: %1, actual: %2, remaining: %3".arg(durationTo64(duration)).arg(durationTo64(chord.duration)).arg(remaining));
+    
+    var success=true;
+    while(success && remaining > 0) {
+        var durG=fraction(remaining,64).str;
+        success=oCursor.next();
+        if(!success) {
+            console.warn("Unable to move to the next element while searching for the remaining %1 duration".arg(durG));
+            break;
+        }
+        cur_time = oCursor.tick;
+        var element = oCursor.element;
+        if (element.type!=Element.CHORD)  {
+            console.warn("Could not find a valid Element.CHORD element while searching for the remaining %1 duration (found %2)".arg(durG).arg(element.userName()));
+            break;
+        }
+        chord=element;
+        remaining=remaining-durationTo64(chord.duration);
+        console.log("- expected: %1, last: %2, remaining: %3".arg(durationTo64(duration)).arg(durationTo64(chord.duration)).arg(remaining));
+        }
+
+    return chord;
 }
 
 /**
  * @param toNote.pitch: the target pitch,
-
- * @param toNote.tpc1, toNote.tpc2 : the target tpc, if known beforehand
-
- * -- OR --
-
- * @param toNote.concertPitch: true|false, false means the note must be dispalyed as having that pitch.
+ * 
+ * @param toNote.tpc1, toNote.tpc2 -- OR -- toNote.concertPitch, toNote.sharp_mode
+ * * toNote.tpc1, toNote.tpc2 : the target tpc, if known beforehand
+ * * toNote.concertPitch: true|false, false means the note must be dispalyed as having that pitch.
  * For a Bb instrument, a pitch=60 (C), with concertPitch=false will be displayed as a C but be played as Bb.
  * With concertPitch=true, it will be played as a C and therefor displayed as a D.
- * @param toNote.sharp_mode: true|false The preference goes to sharp accidentals (true) or flat accidentals (false)
+ * * toNote.sharp_mode: true|false The preference goes to sharp accidentals (true) or flat accidentals (false)
  */
 function changeNote(note, toNote) {
     if(!note || !toNote) { 
@@ -1196,4 +1254,8 @@ function deltaTpcToPitch(tpc1, tpc2) {
     if (d < 0)
         d += 12;
     return d;
+}
+
+function durationTo64(duration) {
+    return 64 * duration.numerator / duration.denominator;
 }

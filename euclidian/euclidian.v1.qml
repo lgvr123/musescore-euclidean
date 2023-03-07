@@ -49,7 +49,6 @@ MuseScore {
         
         theScore=curScore;
         
-        var pis;
         // Retrieving the starting position in score
         if (theScore && theScore.selection != null && theScore.selection.elements.length > 0) {
             var element = theScore.selection.elements[0];
@@ -58,71 +57,34 @@ MuseScore {
                 element = element.parent
             }
             if (element) { 
-                pis = {
+                positionInScore = {
                     tick: element.tick,
                     track: track,
-                    source: "selection",
-                    measure: -1,
-                    measureTick: -1
+                    source: "selection"
                 };
             }
         }
 
-        if (!pis && theScore) {
+        if (!positionInScore && theScore) {
             var cursor = theScore.newCursor();
             cursor.rewind(Cursor.SELECTION_START);
             if (cursor.segment) {// something is selected
-                pis = {
+                positionInScore = {
                     tick: cursor.tick,
                     track: cursor.track,
-                    source: "cursor",
-                    measure: -1,
-                    measureTick: -1
+                    source: "cursor"
                 }; 
             }
         }
 
-        if (!pis) {
-                pis = {
+      if (!positionInScore) {
+                positionInScore = {
                     tick: 0,
                     track: 0,
-                    source: "default",
-                    measure: 0,
-                    measureTick:0
+                    source: "default"
                 }; 
            
-        } else {
-            // searching the initial position's measure
-            var measure=theScore.firstMeasure;
-            var nbMeasure=1+measure.noOffset;
-            while(measure && measure.lastSegment.tick<=pis.tick) {
-                  //console.log("* %4) %1: [%2,%3]".arg(pis.tick).arg(measure.firstSegment.tick).arg(measure.lastSegment.tick).arg(nbMeasure));
-                  measure=measure.nextMeasure;
-                  if(measure)nbMeasure=nbMeasure + 1 +measure.noOffset;
-                  }
-
-            //if (measure) console.log("* %4) %1: [%2,%3]".arg(pis.tick).arg(measure.firstSegment.tick).arg(measure.lastSegment.tick).arg(nbMeasure));
-                  
-            pis.measure=nbMeasure;
-                  
-            pis.measureTick=0;
-            if (measure) {
-                var first=measure.firstSegment;
-                //console.log("- segment : %1 (%2)".arg(first?first.segmentType:"--").arg(first?first.userName():"--"));
-                while(first && first.segmentType != 512) {
-                    first = first.nextInMeasure;
-                    //console.log("- segment : %1 (%2)".arg(first?first.segmentType:"--").arg(first?first.userName():"--"));
-                    }
-                
-                if(first) pis.measureTick=first.tick;
-                console.log(">>>"+pis.measureTick);
-            
-            }
-
-            console.log("L'élément est dans la mesure %1.".arg(nbMeasure));
-            txtStatus.text=qsTr("Measure : %1").arg(pis.measure);
-        }
-        positionInScore=pis; // assigning to "positionInScore" all properties at once
+        }        
         console.log(JSON.stringify(positionInScore));
 
         // Retrieving the notes that could be used for the rhythm
@@ -143,8 +105,8 @@ MuseScore {
         } else {
             useAdhoc.checked=true;
         }
-
-        atCursor.checked=true;
+        
+            unit.unitDuration=1.75;
         
     }
 
@@ -347,209 +309,202 @@ MuseScore {
 
             }        
 
-            Label {
-                text: qsTr("Start at step") + ":"
-                color: euclidianRhythm.checked?sysActivePalette.text : sysActivePalette.mid
+        Label {
+            text: qsTr("Start at step") + ":"
+            color: euclidianRhythm.checked?sysActivePalette.text : sysActivePalette.mid
+        }
+        SpinBox {
+            id: startAt
+            enabled: euclidianRhythm.checked
+
+            from: (parseInt(patternSize.text) * (-1))
+            value: 0
+            to: (parseInt(patternSize.text) - 1)
+            stepSize: 1
+
+            validator: IntValidator {
+                bottom: startAt.from
+                top: startAt.to
             }
-            SpinBox {
-                id: startAt
-                enabled: euclidianRhythm.checked
 
-                from: (parseInt(patternSize.text) * (-1))
-                value: 0
-                to: (parseInt(patternSize.text) - 1)
-                stepSize: 1
+            textFromValue: function (value, locale) {
+                return Number((value < 0) ? value : value + 1); // On bypasse 0: -2, -1, 1, 2
+            }
 
-                validator: IntValidator {
-                    bottom: startAt.from
-                    top: startAt.to
+            valueFromText: function (text, locale) {
+                var n = Number.fromLocaleString(locale, text);
+                return (n <= 0) ? n : n - 1; // On bypasse 0: -2, -1, 1, 2
+            }
+
+            onValueModified: refresh()
+        }
+        Label {
+            text: qsTr("Duration") + ":"
+        }
+        TextField {
+            Layout.preferredWidth: 40
+            id: duration
+            text: "1"
+            selectByMouse: true
+        }
+        Label {
+            text: qsTr("Unit") + ":"
+        }
+
+        RowLayout {
+            TempoUnitBox {
+                id: unit
+                sizeMult: 1
+            }
+            ComboBox {
+                model: durationmult
+                id: mult
+                textRole: "text"
+            }
+        }
+
+        Label {
+            text: qsTr("Source") + ":"
+            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+        }
+
+        GroupBox {
+            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+            Layout.columnSpan: 2
+
+            ColumnLayout {
+                
+                anchors.fill: parent
+
+                ButtonGroup {
+                    id: source
                 }
-
-                textFromValue: function (value, locale) {
-                    return Number((value < 0) ? value : value + 1); // On bypasse 0: -2, -1, 1, 2
+                
+                RadioButton {
+                    id: useSelection
+                    text: qsTr("Use selection : %1").arg(chordToText(selection))
+                    enabled: selection.length>0
+                    ButtonGroup.group: source
                 }
-
-                valueFromText: function (text, locale) {
-                    var n = Number.fromLocaleString(locale, text);
-                    return (n <= 0) ? n : n - 1; // On bypasse 0: -2, -1, 1, 2
+                
+                RadioButton {
+                    id: useClipboard
+                    text: qsTr("Use clipboard : %1").arg(chordToText(clipboard))
+                    enabled: clipboard.length>0
+                    ButtonGroup.group: source
                 }
-
-                onValueModified: refresh()
-            }
-            Label {
-                text: qsTr("Duration") + ":"
-            }
-            TextField {
-                Layout.preferredWidth: 40
-                id: duration
-                text: "1"
-                selectByMouse: true
-            }
-            Label {
-                text: qsTr("Unit") + ":"
-            }
-
-            RowLayout {
-                TempoUnitBox {
-                    id: unit
-                    sizeMult: 1
-                }
-                ComboBox {
-                    model: durationmult
-                    id: mult
-                    textRole: "text"
-                }
-            }
-
-            Label {
-                text: qsTr("Source") + ":"
-                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-            }
-
-            GroupBox {
-                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-                Layout.columnSpan: 2
-
-                ColumnLayout {
-                    
-                    anchors.fill: parent
-
-                    ButtonGroup {
-                        id: source
-                    }
-                    
+                
+                Row {
                     RadioButton {
-                        id: useSelection
-                        text: qsTr("Use selection : %1").arg(chordToText(selection))
-                        enabled: selection.length>0
+                        id: useAdhoc
+                        text: qsTr("Use :")
+                        enabled: true
                         ButtonGroup.group: source
                     }
                     
-                    RadioButton {
-                        id: useClipboard
-                        text: qsTr("Use clipboard : %1").arg(chordToText(clipboard))
-                        enabled: clipboard.length>0
-                        ButtonGroup.group: source
+                    ComboBox {
+                        id: adhocNote
+                        model: allnotes
+                        textRole: "name"
+                        enabled: useAdhoc.checked
                     }
                     
-                    Row {
-                        RadioButton {
-                            id: useAdhoc
-                            text: qsTr("Use :")
-                            enabled: true
-                            ButtonGroup.group: source
-                        }
-                        
-                        ComboBox {
-                            id: adhocNote
-                            model: allnotes
-                            textRole: "name"
-                            enabled: useAdhoc.checked
-                        }
-                        
-                        
-                    }
                     
                 }
+                
             }
+        }
 
-            Label {
-                text: qsTr("Use") + ":"
-                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-                Layout.topMargin: (gpbeat.label)?gpbeat.label.height:0
-            }
+        Label {
+            text: qsTr("Use") + ":"
+            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+            Layout.topMargin: (gpbeat.label)?gpbeat.label.height:0
+        }
 
-            GroupBox {
-                title: qsTr("Beat")
-                id: gpbeat
-                Layout.columnSpan: 1
-                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-                ColumnLayout {
-                    RadioButton {
-                        id: useFirst
-                        text: qsTr("First note: %1").arg(notesToText(nnotes(1)))
-                        enabled: (clipboard.length > 0 && useClipboard.checked) || (selection.length > 0 && useSelection.checked) || useAdhoc.checked
-                    }
-                    RadioButton {
-                        id: cycleNotes
-                        text: qsTr("Cycle accross selection")
-                        enabled: (clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked)
-                    }
+        GroupBox {
+            title: qsTr("Beat")
+            id: gpbeat
+            Layout.columnSpan: 1
+            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+            ColumnLayout {
+                RadioButton {
+                    id: useFirst
+                    text: qsTr("First note: %1").arg(notesToText(nnotes(1)))
+                    enabled: (clipboard.length > 0 && useClipboard.checked) || (selection.length > 0 && useSelection.checked) || useAdhoc.checked
+                }
+                RadioButton {
+                    id: cycleNotes
+                    text: qsTr("Cycle accross selection")
+                    enabled: (clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked)
                 }
             }
-            
-                    GroupBox {
-                title: qsTr("Off-Beat")
-                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+        }
+        
+                GroupBox {
+            title: qsTr("Off-Beat")
+            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
 
-                ColumnLayout {
-                    
-                    anchors.fill: parent
+            ColumnLayout {
+                
+                anchors.fill: parent
 
-                    ButtonGroup {
-                        id: off
-                    }
-                    
+                ButtonGroup {
+                    id: off
+                }
+                
+                RadioButton {
+                    id: useOffbeatRest
+                    text: qsTr("Rest")
+                    enabled: true
+                    ButtonGroup.group: off
+                }
+                
+                RadioButton {
+                    id: useOffbeatSecond
+                    text: qsTr("Second: %1").arg(notesToText(nnotes(2)))
+                    enabled: (useFirst.checked) && ((clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked))
+                    ButtonGroup.group: off
+                }
+                
+                Row {
                     RadioButton {
-                        id: useOffbeatRest
-                        text: qsTr("Rest")
+                        id: useOffbeatAdhoc
+                        text: qsTr("Use :")
                         enabled: true
                         ButtonGroup.group: off
                     }
                     
-                    RadioButton {
-                        id: useOffbeatSecond
-                        text: qsTr("Second: %1").arg(notesToText(nnotes(2)))
-                        enabled: (useFirst.checked) && ((clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked))
-                        ButtonGroup.group: off
-                    }
-                    
-                    Row {
-                        RadioButton {
-                            id: useOffbeatAdhoc
-                            text: qsTr("Use :")
-                            enabled: true
-                            ButtonGroup.group: off
-                        }
-                        
-                        ComboBox {
-                            model: allnotes
-                            textRole: "name"
-                            id: offbeatNote
-                            enabled: useOffbeatAdhoc.checked
-                        }
-                    }
-                    
-                }
-            }
-
-
-            Label {
-                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-                text: qsTr("Where") + ":"
-            }
-
-            GroupBox {
-                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-                Layout.columnSpan: 2
-                ButtonGroup {
-                    id: where
-                }
-                ColumnLayout {
-                    RadioButton {
-                        id: atCursor
-                        text: qsTr("At cursor")
-                        enabled: positionInScore?(positionInScore.tick!==positionInScore.measureTick):false
-                        ButtonGroup.group: where
-                    }
-                    RadioButton {
-                        id: atMeasure
-                        text: qsTr("From measure start")
-                        enabled: positionInScore?(positionInScore.tick!==positionInScore.measureTick):false
-                        ButtonGroup.group: where
+                    ComboBox {
+                        model: allnotes
+                        textRole: "name"
+                        id: offbeatNote
+                        enabled: useOffbeatAdhoc.checked
                     }
                 }
+                
             }
+        }
+
+
+        /*Label {
+            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+            text: qsTr("Where") + ":"
+        }
+
+        GroupBox {
+            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+            Layout.columnSpan: 2
+            ColumnLayout {
+                RadioButton {
+                    id: atCursor
+                    text: qsTr("At cursor")
+                }
+                RadioButton {
+                    id: atMeasure
+                    text: qsTr("From measure start")
+                }
+            }
+            }*/
         } // GridLayout
 
         // Button bar
@@ -586,7 +541,7 @@ MuseScore {
 
             Text {
                 id: txtStatus
-                text: ""
+                text: "some status"
                 wrapMode: Text.NoWrap
                 elide: Text.ElideRight
                 maximumLineCount: 1
@@ -723,56 +678,50 @@ MuseScore {
         var targets = [];
         loopelements:
         for (var i = 0; i < chords.length; i++) {
-            var current = chords[i];
+            var chord = chords[i];
 
-            if (current.type === Element.NOTE) {
+            if (chord.type === Element.NOTE) {
                 logThis("!! note element in the selection. Using its parent's chord instead");
-                current = current.parent;
+                chord = chord.parent;
 
-                console.log("checking if the parent's chord has already been added in %1 elemnts".arg(targets.length));
                 for (var c = 0; c < targets.length; c++) {
-                    var prev=targets[c];
                     // 28/2/2023: Missing note 
-                    // if ((prev.tick === current.parent.tick) && (prev.track === current.track)) {
-                    console.log("- Comparing %1/%2 vs. %3 at %4/%5".arg(current.parent.tick).arg(current.track).arg(prev.userName()).arg(prev.tick).arg(prev.track));
-                    console.log("  - type : %1 vs. Element.CHORD: %2".arg(prev.type).arg(Element.CHORD));
-                    if ((prev.type === Element.CHORD) && (prev.tick === current.parent.tick) && (prev.track === current.track)) {
+                    // if ((targets[c].tick === chord.parent.tick) && (targets[c].track === chord.track)) {
+                    if ((targets[c].tick === chord.parent.tick) && (targets[c].track === chord.track) && (targets[c].type === Element.CHORD)) {
 						logThis("dropping this note, because we have already added its parent's chord in the selection");
                         continue loopelements;
 					}
                 }
-				logThis("Note found. Adding its parent's chord because this chord is not not been added");
             }
 
-            logThis("Copying " + i + ": " + current.userName() + " - " + (current.duration ? current.duration.str : "null") + ", notes: " + (current.notes ? current.notes.length : 0));
+            logThis("Copying " + i + ": " + chord.userName() + " - " + (chord.duration ? chord.duration.str : "null") + ", notes: " + (chord.notes ? chord.notes.length : 0));
             var target = {
-				"_element": current,
-				"type": current.type,
-				"tick": current.parent.tick,
-				"track": current.track,
-                "duration": (current.duration?{
-                    "numerator": current.duration.numerator,
-                    "denominator": current.duration.denominator,
+				"_element": chord,
+				"tick": chord.parent.tick,
+				"track": chord.track,
+                "duration": (chord.duration?{
+                    "numerator": chord.duration.numerator,
+                    "denominator": chord.duration.denominator,
                 }:null),
-                "lyrics": current.lyrics,
-                "graceNotes": current.graceNotes,
+                "lyrics": chord.lyrics,
+                "graceNotes": chord.graceNotes,
 				"notes": undefined,
 				"annotations": [],
-				"_username": current.userName(),
-				"userName": function() { return this._username;}
+				"_username": chord.userName(),
+				"userName": function() { return this._username;} //must be "chords[i]"
             };
 
             // If CHORD, then remember the notes. Otherwise treat as a rest
-            if (current.type === Element.CHORD) {
-                // target.notes = current.notes; // 26/2/23 current.notes n'est pas une Array donc c'est un peu chiant
+            if (chord.type === Element.CHORD) {
+                // target.notes = chord.notes; // 26/2/23 chord.notes n'est pas une Array donc c'est un peu chiant
                 target.notes = [];
-                for(var n=0; n<current.notes.length;n++) {
-                target.notes.push(current.notes[n]);
+                for(var n=0; n<chord.notes.length;n++) {
+                target.notes.push(chord.notes[n]);
                 }
             };
 
 			// Searching for harmonies & other annotations
-			var seg=current;
+			var seg=chord;
 			while(seg && seg.type!==Element.SEGMENT) {
 				seg=seg.parent
 			}
@@ -783,11 +732,11 @@ MuseScore {
 				if (annotations && (annotations.length > 0)) {
 					var filtered=[];
 					// annotations=annotations.filter(function(e) {
-						// return (e.type === Element.HARMONY) && (e.track===current.track);
+						// return (e.type === Element.HARMONY) && (e.track===chord.track);
 					// });
 					for(var h=0;h<annotations.length;h++) {
 						var e=annotations[h];
-						if (/*(e.type === Element.HARMONY) &&*/ (e.track===current.track)) 
+						if (/*(e.type === Element.HARMONY) &&*/ (e.track===chord.track)) 
 							filtered.push(e);
 					}
 					annotations=filtered;
@@ -863,7 +812,7 @@ MuseScore {
         else if (useClipboard.checked && clipboard.length>=n) {
             return clipboard[n-1].notes;
         }
-        else if (useAdhoc.checked && adhocNote.currentIndex>=0 && n===1) { // No 2nd note in the adhoc mode
+        else if (useAdhoc.checked && adhocNote.currentIndex>=0) {
             return [allnotes.get(adhocNote.currentIndex)];
         
         } else return null;
@@ -926,11 +875,7 @@ MuseScore {
         // ~~ looping thru beats
         var score = theScore; 
         var cursor = score.newCursor();
-        var tick;
-        if ((positionInScore.tick===positionInScore.measureTick) || (atCursor.checked)) tick=positionInScore.tick;
-        else tick=positionInScore.measureTick;
-        
-        cursor.rewindToTick(tick);
+        cursor.rewindToTick(positionInScore.tick);
         cursor.track=positionInScore.track;
         cursor.filter = Segment.ChordRest;
         console.log("* tick at start " + cursor.tick);
@@ -941,16 +886,24 @@ MuseScore {
         var lastMult=1;
         var step=-1;
 
-        //score.startCmd(); //-DEBUG
-        for (var i = 0; i < beats.length; i++) {
+        score.startCmd();
+        // for (var i = 0; i < beats.length; i++) {
+        var i=0;
+        var debug=0;
+        var remaining=0;
+        var totie;
+        while(i < beats.length && debug<99) {
+            debug++;
+
             var play = beats[i];
             console.log("---- " + i + " ----");
             
             // ~~ bypass beats included in previous duration multiplication
-            if(lastMult>1) {
+            if(remaining===0 && lastMult>1) {
                 lastMult--;
                 console.log("=> In duration multiplication, still covering %1 indexes".arg(lastMult));
                 if (play) console.warn("Conflicting duration multiplication at i="+i);
+                i++;
                 continue;
             }
 
@@ -966,9 +919,9 @@ MuseScore {
 
             removeElement(cursor.element); // replace whatever we have by a rest
 
-            var chordRest = cursor.element;
+            var note = cursor.element;
 
-            if (!chordRest) {
+            if (!note) {
                 console.error("could not find an element at cursor at i="+i);
                 break;
             }
@@ -978,7 +931,6 @@ MuseScore {
             var realDuration;
 
             // ~~ push the notes and rests
-            score.startCmd(); //+DEBUG
             if (play) {
                 // == On-beat: Note ==
                 
@@ -986,36 +938,40 @@ MuseScore {
                 
                 var idx=step%chords.length;
                 
-                // ~~ duration, including multiplication
-                lastMult=1;
-                console.log("- computing duration from %1 to %2".arg(i+1).arg(i+((defMult>0)?defMult:999)));
-                for(var j=(i+1);j<(i+((defMult>0)?defMult:999))&&(j<beats.length);j++) { // defMult==-1 = fill the off-beats with the on-beats 
-                    if(beats[j]) {
-                        console.log("-- %1) %2 => stop at %3".arg(j).arg(beats[j]).arg(lastMult));
-                        break;
-                    }
-                    lastMult++;
-                    console.log("-- %1) %2 => continue with %3".arg(j).arg(beats[j]).arg(lastMult));
+                if(remaining===0) { 
+                    // ~~ duration, including multiplication
+                    lastMult=1;
+                    console.log("- computing duration from %1 to %2".arg(i+1).arg(i+((defMult>0)?defMult:999)));
+                    for(var j=(i+1);j<(i+((defMult>0)?defMult:999))&&(j<beats.length);j++) { // defMult==-1 = fill the off-beats with the on-beats 
+                        if(beats[j]) {
+                            console.log("-- %1) %2 => stop at %3".arg(j).arg(beats[j]).arg(lastMult));
+                            break;
+                        }
+                        lastMult++;
+                        console.log("-- %1) %2 => continue with %3".arg(j).arg(beats[j]).arg(lastMult));
 
+                    }
+
+                    console.log("-- Normal duration using mult=%1".arg(lastMult));
+                    
+                    realDuration=fraction(unit.unitFractionNum*lastMult, unit.unitFractionDenum);
+                } else {
+                    console.log("-- Remaining duration (%1)".arg(remaining));
+                    realDuration=fraction(remaining,64);
                 }
 
-                console.log("-- Normal duration using mult=%1".arg(lastMult));
-                
-                realDuration=fraction(unit.unitFractionNum*lastMult, unit.unitFractionDenum);
-
-
                 console.log("adding note ("+idx+") at " + cur_time + " of " + realDuration.str);
-                console.log("- on a " + chordRest.userName());
+                console.log("- on a " + note.userName());
                 
                 // ~~ push the chord
                 var target = chords[idx];
                 console.log("- rest to chord");
-                chordRest = NoteHelper.restToChord(chordRest, target, realDuration); // !! ne fonctionne que si "chordRest" est un "REST"
+                note = NoteHelper.restToChord(note, target, realDuration); // !! ne fonctionne que si "note" est un "REST"
 
             } else if (useOffbeatAdhoc.checked && offbeatNote.currentIndex>=0) {
                 // == Off-beat: Note ==
                 console.log("adding an OFF-BEAT note at " + cur_time + " of " + fduration.str);
-                console.log("- on a " + chordRest.userName());
+                console.log("- on a " + note.userName());
                 var notes= [allnotes.get(offbeatNote.currentIndex)];
                 console.log("- rest to chord");
                 console.log(JSON.stringify(notes));
@@ -1024,27 +980,46 @@ MuseScore {
                 } else {
                     realDuration=fraction(remaining,64);
                 }
-                chordRest = NoteHelper.restToChord(chordRest, notes, realDuration); // !! ne fonctionne que si "chordRest" est un "REST"
+                note = NoteHelper.restToChord(note, notes, realDuration); // !! ne fonctionne que si "note" est un "REST"
             } else {
                 // == Off-beat: Rest ==
-                //if(remaining===0) {
+                if(remaining===0) {
                     realDuration=fduration;
-                //} else {
-                //    realDuration=fraction(remaining,64);
-                //}
+                } else {
+                    realDuration=fraction(remaining,64);
+                }
                 cursor.setDuration(realDuration.numerator, realDuration.denominator);
                 console.log("adding rest at " + cur_time + " of " + fduration.str);
                 cursor.addRest();
             }
             cursor.rewindToTick(cur_time);
-            chordRest = cursor.element;
-
-            score.endCmd(); //+DEBUG
+            note = cursor.element;
             
-            //i=9999; // +DEBUG
+            if (totie && (note.type===Element.CHORD)) {
+                  /*cursor.rewindToTick(totie.parent.tick);
+                  selectCursor(cursor);
+                  cmd("chord-tie");
+                  totie=null;*/ // -DEBUG : crash MS
+                  cursor.rewindToTick(cur_time);
+            }
+            
+            remaining=durationTo64(realDuration)-durationTo64(note.duration);
+            
+            console.log("- %1) expected: %2, actual: %3, remaining: %4".arg(i).arg(durationTo64(realDuration)).arg(durationTo64(note.duration)).arg(remaining));
+            if(remaining===0) {
+                  i++;
+                  totie=null;
+                  }
+             else if (note.type===Element.CHORD) {
+                  totie=note;
+                  }
+             else {
+                  totie=null;
+                  }
+
 
         }
-        //score.endCmd(); //-DEBUG
+        score.endCmd();
 
     }
 

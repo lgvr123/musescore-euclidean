@@ -234,7 +234,10 @@ function buildPitchedNote(noteName, accidental) {
  * * boolean==false | undefined: the duration will be quarter
  *
  * @return an element of type Element.NOTE created on that rest
- */
+ * IMPORTANT REMARK: the returned element can be on the same segment's tick than the rest element or *after*
+ * if the the requested duration for the note was larger than the available duration in the measure.
+ * In that case, the function creates tied notes. The returned element is the last of those tied notes.
+*/
 function restToNote(rest, toNote, keepRestDuration) {
     if(!rest || !toNote)  { 
         console.warn("restToNote: null arguments");
@@ -275,7 +278,10 @@ function restToNote(rest, toNote, keepRestDuration) {
  * * boolean==true: keep the rest duration
  * * boolean==false | undefined: the duration will be quarter
  *
- * @return an element of type Element.CHORD created on that rest
+ * @return an element of type Element.CHORD created on that rest 
+ * IMPORTANT REMARK: the returned element can be on the same segment's tick than the rest element or *after*
+ * if the the requested duration for the chord was larger than the available duration in the measure.
+ * In that case, the function creates tied chords. The returned element is the last of those tied chords.
  */
 function restToChord(rest, toNotes, keepRestDuration) {
     // checks
@@ -345,9 +351,6 @@ function restToChord(rest, toNotes, keepRestDuration) {
     changeNote(note, toNote);
 
    
-    //console.log("Dealing with note "+0+": "+notes[0].pitch);
-    // restToNote(rest, notes[0], keepRestDuration);
-
     // adding the other notes
     for (var i = 1; i < notes.length; i++) {
         var dest = notes[i];
@@ -376,13 +379,13 @@ function restToChord(rest, toNotes, keepRestDuration) {
             console.warn("Unable to move to the next element while searching for the remaining %1 duration".arg(durG));
             break;
         }
-        cur_time = oCursor.tick;
         var element = oCursor.element;
         if (element.type!=Element.CHORD)  {
             console.warn("Could not find a valid Element.CHORD element while searching for the remaining %1 duration (found %2)".arg(durG).arg(element.userName()));
             break;
         }
         chord=element;
+        cur_time = oCursor.tick;
         remaining=remaining-durationTo64(chord.duration);
         console.log("- expected: %1, last: %2, remaining: %3".arg(durationTo64(duration)).arg(durationTo64(chord.duration)).arg(remaining));
         }

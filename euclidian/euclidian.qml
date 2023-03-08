@@ -120,9 +120,9 @@ MuseScore {
             }
 
             console.log("L'élément est dans la mesure %1.".arg(nbMeasure));
-            txtStatus.text=qsTr("Measure : %1").arg(pis.measure);
         }
         positionInScore=pis; // assigning to "positionInScore" all properties at once
+            txtStatus.text=qsTr("At measure : %1").arg(positionInScore?positionInScore.measure:qsTr("invalid"));
         console.log(JSON.stringify(positionInScore));
 
         // Retrieving the notes that could be used for the rhythm
@@ -377,7 +377,7 @@ MuseScore {
                 onValueModified: refresh()
             }
             Label {
-                text: qsTr("Duration") + ":"
+                text: qsTr("Repeats") + ":"
             }
             TextField {
                 Layout.preferredWidth: 40
@@ -386,7 +386,7 @@ MuseScore {
                 selectByMouse: true
             }
             Label {
-                text: qsTr("Unit") + ":"
+                text: qsTr("Time unit") + ":"
             }
 
             RowLayout {
@@ -398,6 +398,11 @@ MuseScore {
                     model: durationmult
                     id: mult
                     textRole: "text"
+                }
+                CheckBox {
+                    id: consecutiveAsOne
+                    text: qsTr("Merge consecutive notes")
+                    checked: false
                 }
             }
 
@@ -975,8 +980,6 @@ MuseScore {
 
             var cur_time = cursor.segment.tick;
             
-            var realDuration;
-
             // ~~ push the notes and rests
             score.startCmd(); //+DEBUG
             if (play) {
@@ -1001,7 +1004,7 @@ MuseScore {
 
                 console.log("-- Normal duration using mult=%1".arg(lastMult));
                 
-                realDuration=fraction(unit.unitFractionNum*lastMult, unit.unitFractionDenum);
+                var realDuration=fraction(unit.unitFractionNum*lastMult, unit.unitFractionDenum);
 
 
                 console.log("adding note ("+idx+") at " + cur_time + " of " + realDuration.str);
@@ -1019,25 +1022,45 @@ MuseScore {
                 var notes= [allnotes.get(offbeatNote.currentIndex)];
                 console.log("- rest to chord");
                 console.log(JSON.stringify(notes));
-                if(remaining===0) {
-                    realDuration=fduration;
-                } else {
-                    realDuration=fraction(remaining,64);
-                }
+                // TODO Appliquer le mode "fill" aux notes off ?
+                var realDuration=fduration;
                 chordRest = NoteHelper.restToChord(chordRest, notes, realDuration); // !! ne fonctionne que si "chordRest" est un "REST"
             } else {
                 // == Off-beat: Rest ==
-                //if(remaining===0) {
-                    realDuration=fduration;
-                //} else {
-                //    realDuration=fraction(remaining,64);
-                //}
+                var realDuration=fduration;
                 cursor.setDuration(realDuration.numerator, realDuration.denominator);
                 console.log("adding rest at " + cur_time + " of " + fduration.str);
+                // TODO Faire une belle fonction qui tient compte de la durée disponible dans la mesure et retourne le dernier silence créé.
                 cursor.addRest();
+                cursor.rewindToTick(cur_time);
+                chordRest = cursor.element;
+
+    var remaining=durationTo64(realDuration)-durationTo64(chordRest.duration);
+    console.log("- expected: %1, actual: %2, remaining: %3".arg(durationTo64(realDuration)).arg(durationTo64(chordRest.duration)).arg(remaining));
+    
+    var success=true;
+    while(success && remaining > 0) {
+        var durG=fraction(remaining,64).str;
+        success=cursor.next();
+        if(!success) {
+            console.warn("Unable to move to the next element while searching for the remaining %1 duration".arg(durG));
+            break;
+        }
+        var element = cursor.element;
+        if (element.type!=Element.REST)  {
+            console.warn("Could not find a valid Element.REST element while searching for the remaining %1 duration (found %2)".arg(durG).arg(element.userName()));
+            break;
+        }
+        chordRest=element;
+        cur_time = cursor.tick;
+        remaining=remaining-durationTo64(chordRest.duration);
+        console.log("- expected: %1, last: %2, remaining: %3".arg(durationTo64(realDuration)).arg(durationTo64(chordRest.duration)).arg(remaining));
+        }
+
+
             }
-            cursor.rewindToTick(cur_time);
-            chordRest = cursor.element;
+                
+            cursor.rewindToTick(chordRest.parent.tick);
 
             score.endCmd(); //+DEBUG
             

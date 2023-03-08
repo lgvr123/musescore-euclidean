@@ -25,10 +25,19 @@ RowLayout {
     property var buttonDownColor: "#17a81a"
 
     // returned values
-    property var unitDuration
+    property real unitDuration: 1
     readonly property var unitText: (lstMult.currentIndex>=0)?multipliers.get(lstMult.currentIndex).sym:undefined
     readonly property var unitFractionNum: (lstMult.currentIndex>=0)?multipliers.get(lstMult.currentIndex).fnum:undefined
     readonly property var unitFractionDenum: (lstMult.currentIndex>=0)?multipliers.get(lstMult.currentIndex).fdenum:undefined
+
+    onUnitDurationChanged: {
+        //the unitDuration value changed from an external property set => we propagate this to the ComboBox
+        if (!lstMult._inOnActivated) {
+            // console.log(">>> setting lstMult currentIndex");
+            var index=indexForUnitDuration(unitDuration);
+            if (index && index >=0) lstMult.currentIndex=index;
+        }
+    }
 
     // inner data
     ListModel {
@@ -140,22 +149,14 @@ RowLayout {
         textRole: "text"
 
         property var comboValue: "mult"
+        property var _inOnActivated: false
 
         onActivated: {
             console.log("Activated with model = %1".arg(JSON.stringify(model)));
-            unitDuration = model.get(lstMult.currentIndex)[comboValue];
+            _inOnActivated=true;
+            unitDuration = (lstMult.currentIndex>=0)?model.get(lstMult.currentIndex)[comboValue]:undefined;
+            _inOnActivated=false;
             console.log("Ending up with unitDuration = %1".arg(JSON.stringify(unitDuration)));
-        }
-
-        Binding on currentIndex {
-            value: indexForUnitDuration()
-        }
-        
-        Component.onCompleted: {
-            // to be done this way too for the very first call
-            var ci=indexForUnitDuration();
-            if(ci<=0) ci=6; // chercher l'index telque mult=1
-            lstMult.currentIndex = ci;
         }
 
         implicitHeight: 40 * sizeMult
@@ -177,12 +178,19 @@ RowLayout {
         
     }
     
-    function indexForUnitDuration() {
-        if (!unitDuration) return -1;
-        for( var i = 0; i < multipliers.rowCount(); i++ ) {
-            if (multipliers.get(i).mult===unitDuration) return i;
+    function indexForUnitDuration(ud) {
+        console.log("UNIT DURATION: getting index for "+(ud?ud:"undefined"));
+        if (!ud) {
+            console.log("UNIT DURATION: UNDEFINED, setting index to -1");
+            return -1;
         }
-        unitDuration=undefined;
+        for( var i = 0; i < multipliers.rowCount(); i++ ) {
+            if (multipliers.get(i).mult===ud) {
+                console.log("UNIT DURATION: FOUND as "+multipliers.get(i).text+", setting index to "+i);
+                return i;
+            }
+        }
+        console.log("UNIT DURATION: NOT FOUND, setting index to -1");
         return -1;
     }
 }

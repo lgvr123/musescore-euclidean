@@ -3,11 +3,13 @@ import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
 
 /**
- * Exposes 2 values:
- * - unitDuration: the base duration selected (4 for a whole, 1 for a quarter, ...)
- * - unitText: a representation with Symbols of the selected duration
- * - unitFractionNum: the numerator of the fraction to use for durations
- * - unitFractionDenum: the denumerator of the fraction to use for durations
+ * Exposed properties:
+ * - unitDuration: the base duration selected (4 for a whole, 1 for a quarter, ...)  [ReadWrite]
+ * - unitText: a representation with Symbols of the selected duration [ReadOnly]
+ * - unitFractionNum: the numerator of the fraction to use for durations [ReadOnly]
+ * - unitFractionDenum: the denumerator of the fraction to use for durations [ReadOnly]
+ *
+ * Versions history
  * 1.0.0 Version initiale tirée de TapTempo
  */
 

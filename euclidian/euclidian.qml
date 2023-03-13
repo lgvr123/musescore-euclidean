@@ -13,7 +13,7 @@ import "selectionhelper.js" as SelHelper
 /*  1.0.0: Initial version
 
 // TODO: track <> 0
-// EN COURS: ryhtme libre
+
 
 /**********************************************/
 MuseScore {
@@ -28,7 +28,7 @@ MuseScore {
     Component.onCompleted: {
         if (mscoreMajorVersion >= 4) {
             mainWindow.title = qsTr("Euclidian Rhythm");
-            mainWindow.thumbnailName = "logoTemplater.png";
+            mainWindow.thumbnailName = "logo.png";
             // mainWindow.categoryCode = "batch-processing";
         }
     }
@@ -46,109 +46,108 @@ MuseScore {
                 versionError.open()
         }
 
+        // Store the current score (because the clipboard analyse mechanism could change the `curScore` definition
         theScore = curScore;
 
-        var pis;
+        // Reconstruct the stored free rhythm pattern
+        var pArr=settings.freePattern;
+        console.log("pArr: "+(pArr?JSON.stringify(pArr):"undefined"));
+        console.log("is array ? "+Array.isArray(pArr));
+        console.log("Size %1 vs. pattern %2".arg(pArr.length).arg(freePattern.count));
+        if (pArr && Array.isArray(pArr)) {
+            for(var i=0;i<Math.min(pArr.length, freePattern.count);i++) {
+                freePattern.itemAt(i).checked=(pArr[i]===1);
+            }
+        }
+
         // Retrieving the starting position in score
-        if (theScore && theScore.selection != null && theScore.selection.elements.length > 0) {
-            var element = theScore.selection.elements[0];
-            var track = element.track;
-            while (element && element.type !== Element.SEGMENT) {
-                element = element.parent
-            }
-            if (element) {
-                pis = {
-                    tick: element.tick,
-                    track: track,
-                    source: "selection",
-                    measure: -1,
-                    measureTick: -1
-                };
-            }
-        }
-
-        if (!pis && theScore) {
-            var cursor = theScore.newCursor();
-            cursor.rewind(Cursor.SELECTION_START);
-            if (cursor.segment) { // something is selected
-                pis = {
-                    tick: cursor.tick,
-                    track: cursor.track,
-                    source: "cursor",
-                    measure: -1,
-                    measureTick: -1
-                };
-            }
-        }
-
-        if (!pis) {
-            pis = {
-                tick: 0,
-                track: 0,
-                source: "default",
-                measure: 0,
-                measureTick: 0
-            };
-
-        } else {
-            // searching the initial position's measure
-            var measure = theScore.firstMeasure;
-            var nbMeasure = 1 + measure.noOffset;
-            while (measure && measure.lastSegment.tick <= pis.tick) {
-                //console.log("* %4) %1: [%2,%3]".arg(pis.tick).arg(measure.firstSegment.tick).arg(measure.lastSegment.tick).arg(nbMeasure));
-                measure = measure.nextMeasure;
-                if (measure)
-                    nbMeasure = nbMeasure + 1 + measure.noOffset;
-            }
-
-            //if (measure) console.log("* %4) %1: [%2,%3]".arg(pis.tick).arg(measure.firstSegment.tick).arg(measure.lastSegment.tick).arg(nbMeasure));
-
-            pis.measure = nbMeasure;
-
-            pis.measureTick = 0;
-            if (measure) {
-                var first = measure.firstSegment;
-                //console.log("- segment : %1 (%2)".arg(first?first.segmentType:"--").arg(first?first.userName():"--"));
-                while (first && first.segmentType != 512) {
-                    first = first.nextInMeasure;
-                    //console.log("- segment : %1 (%2)".arg(first?first.segmentType:"--").arg(first?first.userName():"--"));
-                }
-
-                if (first)
-                    pis.measureTick = first.tick;
-                console.log(">>>" + pis.measureTick);
-
-            }
-
-            console.log("L'élément est dans la mesure %1.".arg(nbMeasure));
-        }
-        positionInScore = pis; // assigning to "positionInScore" all properties at once
-        txtStatus.text = qsTr("At measure : %1").arg(positionInScore ? positionInScore.measure : qsTr("invalid"));
-        console.log(JSON.stringify(positionInScore));
+        positionInScore = retrieveCurrentPosition(); // assigning to "positionInScore" all properties at once
 
         // Retrieving the notes that could be used for the rhythm
         selection = retrieveSelection();
         clipboard = retrieveClipboard();
 
-        // Setting the options based on what was found in the earlier steps
+        // Setting the default options based on what was found in the earlier steps
         useFirst.checked = true;
-        useOffbeatRest.checked = true
-            if (clipboard.length > 0) {
-                useClipboard.checked = true;
-                if (clipboard.length > 1)
-                    cycleNotes.checked = true;
-            } else if (selection.length > 0) {
-                useSelection.checked = true;
-                if (selection.length > 1)
-                    cycleNotes.checked = true;
-            } else {
-                useAdhoc.checked = true;
-            }
+        useOffbeatRest.checked = true;
+        if (clipboard.length > 0) {
+            useClipboard.checked = true;
+            if (clipboard.length > 1)
+                cycleNotes.checked = true;
+        } else if (selection.length > 0) {
+            useSelection.checked = true;
+            if (selection.length > 1)
+                cycleNotes.checked = true;
+        } else {
+            useAdhoc.checked = true;
+        }
 
-            atCursor.checked = true;
+        atCursor.checked = true;
 
     }
 
+    onScoreStateChanged: {
+        if (state.selectionChanged) {
+            console.log("!!Selection changed");
+            if (ongoing) {
+                  console.log("  But busy");
+                  return;
+            }
+            // Retrieving the starting position in score
+            positionInScore = retrieveCurrentPosition(); // assigning to "positionInScore" all properties at once
+
+            // Retrieving the notes that could be used for the rhythm
+            selection = retrieveSelection();
+
+            if (selection.length === 0 && useSelection.checked) {
+                useSelection.checked = false;
+                if (clipboard.length > 0) {
+                    useClipboard.checked = true;
+                } else {
+                    useAdhoc.checked = true;
+                }
+            } 
+
+        }
+    }
+    
+    onPositionInScoreChanged: {
+        /*
+        positionInScore
+                            tick: element.tick,
+                    track: track,
+                    source: "selection",
+                    measure: -1,
+                    measureTick: -1
+                    */
+                // txtStatus.text = qsTr("At measure : %1").arg(pis ? pis.measure : qsTr("invalid"));
+        
+        if (theScore && positionInScore) {
+            var instru="?";
+            
+            for (var i = 0; i < theScore.parts.length; i++) {
+                var p = theScore.parts[i];
+                if (p.startTrack <= positionInScore.track && p.endTrack > positionInScore.track) {
+                    instru = p.longName;
+                    break;
+                }
+            }
+            
+            var measure=positionInScore.measure;
+            if ((positionInScore.track % 4)>0) 
+                measure+="/"+((positionInScore.track % 4)+1);
+
+            
+            
+            txtStatus.text=qsTr("At : %1, measure %2").arg(instru).arg(measure);
+        } else {
+            txtStatus.text=qsTr("At : invalid");
+        }
+
+    }
+    
+    property var ongoing: false
+    
     // Compute dimension based on content
     width: mainRow.implicitWidth + extraLeft + extraRight
     height: mainRow.implicitHeight + extraTop + extraBottom
@@ -358,28 +357,45 @@ MuseScore {
 
 
             // Free rhythm
-            Grid {
-                Layout.alignment: Qt.AlignTop | Qt.AlignRight
+            ColumnLayout {
+                Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
                 Layout.rowSpan: 4
                 Layout.column:2
                 Layout.row:1
-                Layout.preferredWidth: BeatCheckBox.height * columns
-                
-                // visible: freeRhythm.checked
-                
-                columns: 8
-                spacing: 0
-                Repeater {
-                    model: (freeRhythm.checked?patternSize.text:0)
-                    id: freePattern
+                visible: freeRhythm.checked
+
+                Grid {
+                    Layout.preferredWidth: BeatCheckBox.height * columns
+                    Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
                     
-                    BeatCheckBox {
-                        text: (index + 1)
-                        onToggled: refresh()
+                    columns: 8
+                    spacing: 0
+                    Repeater {
+                        model: patternSize.text
+                        id: freePattern
+                        
+                        BeatCheckBox {
+                            text: (index + 1)
+                            onToggled: refresh()
+                        }
+
                     }
 
                 }
-
+                Button {
+                    Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                    text: qsTr("Reset")
+                    onClicked: {
+                        for(var i=0; i<freePattern.count;i++) {
+                            freePattern.itemAt(i).checked=false;
+                        }
+                    }
+                }
+                Item {
+                    // filler
+                    Layout.fillHeight: true
+                }
+                    
             }
 
             
@@ -501,6 +517,15 @@ MuseScore {
                         text: qsTr("Use selection : %1").arg(chordToText(selection))
                         enabled: selection.length > 0
                         ButtonGroup.group: source
+                        contentItem: Label { 
+                            // On doit faire tout ce bazar (de "contentItem") juste pour faire un "ElideRight"
+                            elide: Text.ElideRight
+                            text: useSelection.text
+                            verticalAlignment: Text.AlignVCenter
+                            opacity: enabled ? 1.0 : 0.3
+                            leftPadding: useSelection.indicator.width + useSelection.spacing  
+                            }
+                        Layout.maximumWidth: 350
                     }
 
                     RadioButton {
@@ -508,6 +533,15 @@ MuseScore {
                         text: qsTr("Use clipboard : %1").arg(chordToText(clipboard))
                         enabled: clipboard.length > 0
                         ButtonGroup.group: source
+                        contentItem: Label { 
+                            // On doit faire tout ce bazar (de "contentItem") juste pour faire un "ElideRight"
+                            elide: Text.ElideRight
+                            text: useClipboard.text
+                            verticalAlignment: Text.AlignVCenter
+                            opacity: enabled ? 1.0 : 0.3
+                            leftPadding: useClipboard.indicator.width + useClipboard.spacing  
+                        }
+                        Layout.maximumWidth: 350
                     }
 
                     Row {
@@ -576,7 +610,7 @@ MuseScore {
                     RadioButton {
                         id: useOffbeatRest
                         text: qsTr("Rest")
-                        enabled: freeRhythm.checked || ((mult.currentIndex>=0)?(durationmult.get(mult.currentIndex).mult>=0):true)
+                        enabled: freeRhythm.checked || ((durationmult.count>mult.currentIndex&&mult.currentIndex>=0)?(durationmult.get(mult.currentIndex).mult>=0):true)
                         ButtonGroup.group: off
                     }
 
@@ -693,7 +727,24 @@ MuseScore {
         property alias mult: mult.currentIndex
         property alias euclidianRhythm: euclidianRhythm.checked
         property alias freeRhythm: freeRhythm.checked
+        property alias altNote: adhocNote.currentIndex
+        property alias altOffNote: offbeatNote.currentIndex
+        property var freePattern
     }
+    
+    
+    // Signal onClosing sur la fenêtre parent
+    Connections {
+            target: mainWindow.parent.Window.window
+            onClosing: {
+                console.log("Saving free pattern to stettings");
+                var pArr=[];
+                for (var i = 0; i < patternSize.text; i++) {
+                    pArr.push(freePattern.itemAt(i).checked?1:0);
+                }
+                settings.freePattern=pArr;
+            }
+        }
 
     // Palette for nice color management
     SystemPalette {
@@ -715,6 +766,14 @@ MuseScore {
             mainWindow.parent.Window.window.close();
         }
     }
+    
+    MessageDialog {
+        id: errorDialog
+        icon: StandardIcon.Warning
+        standardButtons: StandardButton.Ok
+        title: qsTr('Warning')
+        text: ""
+    }    
     
     // The core Euclidian rhythm function
     function isBeat(n) {
@@ -785,6 +844,85 @@ MuseScore {
 
     function refresh() {
         visual.requestPaint();
+    }
+    
+    function retrieveCurrentPosition() {
+        var pis;
+        if (theScore && theScore.selection != null && theScore.selection.elements.length > 0) {
+            var element = theScore.selection.elements[0];
+            var track = element.track;
+            while (element && element.type !== Element.SEGMENT) {
+                element = element.parent
+            }
+            if (element) {
+                pis = {
+                    tick: element.tick,
+                    track: track,
+                    source: "selection",
+                    measure: -1,
+                    measureTick: -1
+                };
+            }
+        }
+
+        if (!pis && theScore) {
+            var cursor = theScore.newCursor();
+            cursor.rewind(Cursor.SELECTION_START);
+            if (cursor.segment) { // something is selected
+                pis = {
+                    tick: cursor.tick,
+                    track: cursor.track,
+                    source: "cursor",
+                    measure: -1,
+                    measureTick: -1
+                };
+            }
+        }
+
+        if (!pis) {
+            pis = {
+                tick: 0,
+                track: 0,
+                source: "default",
+                measure: 0,
+                measureTick: 0
+            };
+
+        } else {
+            // searching the initial position's measure
+            var measure = theScore.firstMeasure;
+            var nbMeasure = 1 + measure.noOffset;
+            while (measure && measure.lastSegment.tick <= pis.tick) {
+                //console.log("* %4) %1: [%2,%3]".arg(pis.tick).arg(measure.firstSegment.tick).arg(measure.lastSegment.tick).arg(nbMeasure));
+                measure = measure.nextMeasure;
+                if (measure)
+                    nbMeasure = nbMeasure + 1 + measure.noOffset;
+            }
+
+            //if (measure) console.log("* %4) %1: [%2,%3]".arg(pis.tick).arg(measure.firstSegment.tick).arg(measure.lastSegment.tick).arg(nbMeasure));
+
+            pis.measure = nbMeasure;
+
+            pis.measureTick = 0;
+            if (measure) {
+                var first = measure.firstSegment;
+                //console.log("- segment : %1 (%2)".arg(first?first.segmentType:"--").arg(first?first.userName():"--"));
+                while (first && first.segmentType != 512) {
+                    first = first.nextInMeasure;
+                    //console.log("- segment : %1 (%2)".arg(first?first.segmentType:"--").arg(first?first.userName():"--"));
+                }
+
+                if (first)
+                    pis.measureTick = first.tick;
+                console.log(">>>" + pis.measureTick);
+
+            }
+
+            console.log("L'élément est dans la mesure %1.".arg(nbMeasure));
+        }
+        console.log(JSON.stringify(pis));
+        
+        return pis;
     }
 
     function retrieveSelection() {
@@ -1041,7 +1179,16 @@ MuseScore {
         }
 
         if (allchords.length === 0) {
-            console.warn("No selection");
+            console.warn("No chords");
+            errorDialog.text=qsTr("Cannot process with an empty note selection"); 
+            errorDialog.open();
+            return;
+        }
+
+        if (!positionInScore || !theScore) {
+            console.warn("Invalid score position");
+            errorDialog.text=qsTr("Invalid score position");
+            errorDialog.open();
             return;
         }
 
@@ -1059,22 +1206,30 @@ MuseScore {
         });
 
         if (useFirst.checked)
-            chords = allchords.slice(0,1); // on garde une array
+            chords = allchords.slice(0,1); // "slice" pour garder une array;
         else chords=allchords;
 
 
 
         // ~~ off-beat chord to be filled
-        var offBeatChord;
+        var offBeatChord; // undefined means "rest"
         if (useOffbeatAdhoc.checked && offbeatNote.currentIndex >= 0) {
             offBeatChord=[allnotes.get(offbeatNote.currentIndex)];
         } else if (useOffbeatSecond.checked && allchords.length>=2) { 
-            offBeatChord= allchords.slice(1,1); // on garde une array;
+            offBeatChord= allchords.slice(1,1); // "slice" pour garder une array;
         }
 
         // ~~ beats to be filled
         var beats = getPattern();
         var merged = getMergedPattern();
+        
+        var nb=beats.filter(function(b) { return b }).length;
+        if (nb===0) {
+            console.warn("Empty pattern");
+            errorDialog.text=qsTr("Cannot process with an empty pattern");
+            errorDialog.open();
+            return;
+        }
 
         console.log("Pushing " + beats.length + " beats from " + chords.length + " notes ");
         console.log("Unit: %1, %2 = %3/%4".arg(unit.unitText).arg(unit.unitDuration).arg(unit.unitFractionNum).arg(unit.unitFractionDenum));
@@ -1098,6 +1253,7 @@ MuseScore {
         var step = -1;
         
 
+        ongoing=true;
         score.startCmd(); //-DEBUG
         for (var i = 0; i < merged.length; i++) {
             var item=merged[i];
@@ -1189,6 +1345,7 @@ MuseScore {
 
         }
         score.endCmd(); //-DEBUG
+        ongoing=true;
 
     }
 

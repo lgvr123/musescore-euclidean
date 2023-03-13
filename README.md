@@ -1,20 +1,25 @@
 
-# Euclidian Rhythm Generator plugin for MuseScore 3.x and 4.x
-The *Euclidian Rhythm Generator * will help you create euclidian (or free rhythm) patterns.
-<p align="center"><img src="/euclidian/logo.png" Alt="logo" width="300" /></p>
+# Euclidean Rhythm Generator plugin for MuseScore 3.x and 4.x
+The *Euclidean Rhythm Generator* will help you create euclidean (or free rhythm) patterns.
 
-![Score From Template in action](/demo/euclidian-demo.png)
+(More info on Euclidean Rhythm is this [video](https://www.youtube.com/watch?v=8G8qko7NZdE) (french) or on [wikipedia](https://en.wikipedia.org/wiki/Euclidean_rhythm)).
 
+<p align="center"><img src="/euclidean/logo.png" Alt="logo" width="300" /></p>
 
+![Score From Template in action](/demo/euclidean-demo.png)
+
+## Usage ##
+TBC
 
 ## Download and Install ##
 Download the [last stable version](https://github.com/lgvr123/musescore-euclidian/releases)
 For installation see [Plugins](https://musescore.org/en/handbook/3/plugins).
 
 ### Remark
-The whole zip content (so the `euclidian\ ` folder) must be unzipped **as such** in your plugin folder. <br/>
+The whole zip content (so the `euclidean\ ` folder) must be unzipped **as such** in your plugin folder. <br/>
 
 ## Support of MS4.0
+Supported, although the User Interface does not look very nice in this version.
 
 ## Sponsorship ##
 If you appreciate my plugins, you can support and sponsor their development on the following platforms:

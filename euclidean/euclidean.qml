@@ -17,17 +17,17 @@ import "selectionhelper.js" as SelHelper
 
 /**********************************************/
 MuseScore {
-    menuPath: "Plugins." + qsTr("Euclidian Rhythm")
+    menuPath: "Plugins." + qsTr("Euclidean Rhythm")
     version: "1.0.0"
     requiresScore: true
-    description: qsTr("Create an euclidian rhythm")
+    description: qsTr("Create an euclidean rhythm")
     pluginType: "dialog"
 
     id: mainWindow
 
     Component.onCompleted: {
         if (mscoreMajorVersion >= 4) {
-            mainWindow.title = qsTr("Euclidian Rhythm");
+            mainWindow.title = qsTr("Euclidean Rhythm");
             mainWindow.thumbnailName = "logo.png";
             // mainWindow.categoryCode = "batch-processing";
         }
@@ -53,7 +53,7 @@ MuseScore {
         var pArr=settings.freePattern;
         console.log("pArr: "+(pArr?JSON.stringify(pArr):"undefined"));
         console.log("is array ? "+Array.isArray(pArr));
-        console.log("Size %1 vs. pattern %2".arg(pArr.length).arg(freePattern.count));
+        console.log("Size %1 vs. pattern %2".arg(pArr?pArr.length:0).arg(freePattern.count));
         if (pArr && Array.isArray(pArr)) {
             for(var i=0;i<Math.min(pArr.length, freePattern.count);i++) {
                 freePattern.itemAt(i).checked=(pArr[i]===1);
@@ -83,6 +83,15 @@ MuseScore {
         }
 
         atCursor.checked = true;
+        
+        // Default value, if nothing from settings
+        if(!euclideanRhythm.checked && !freeRhythm.checked) {
+            euclideanRhythm.checked=true;
+        }
+        
+        if(!mult.currentIndex || mult.currentIndex<=0) {
+            mult.currentIndex=0;
+        }
 
     }
 
@@ -292,8 +301,8 @@ MuseScore {
                 }
 
                 RadioButton {
-                    id: euclidianRhythm
-                    text: qsTr("Euclidian Rhythm")
+                    id: euclideanRhythm
+                    text: qsTr("Euclidean Rhythm")
                     ButtonGroup.group: rhythmType
                     onToggled: refresh()
 
@@ -324,7 +333,7 @@ MuseScore {
                     selectByMouse: true
                     onTextChanged: refresh()
 
-                    enabled: euclidianRhythm.checked
+                    enabled: euclideanRhythm.checked
 
                     validator: IntValidator {
                         bottom: 1;
@@ -333,12 +342,12 @@ MuseScore {
                 }
                 Label {
                     text: "/"
-                    color: euclidianRhythm.checked ? sysActivePalette.text : sysActivePalette.mid
+                    color: euclideanRhythm.checked ? sysActivePalette.text : sysActivePalette.mid
                 }
                 TextField {
                     Layout.preferredWidth: 40
                     id: patternSize
-                    text: "32"
+                    text: "16"
                     selectByMouse: true
                     onDisplayTextChanged: refresh()
                     validator: IntValidator {
@@ -404,13 +413,13 @@ MuseScore {
                 Layout.column:0
                 Layout.row:2
                 text: qsTr("Start at step") + ":"
-                color: euclidianRhythm.checked ? sysActivePalette.text : sysActivePalette.mid
+                color: euclideanRhythm.checked ? sysActivePalette.text : sysActivePalette.mid
             }
             SpinBox {
                 Layout.column:1
                 Layout.row:2
                 id: startAt
-                enabled: euclidianRhythm.checked
+                enabled: euclideanRhythm.checked
 
                 from: (parseInt(patternSize.text) * (-1))
                 value: 0
@@ -447,7 +456,7 @@ MuseScore {
                     id: mult
                     textRole: "text"
                     onActivated: refresh()
-                    enabled: euclidianRhythm.checked
+                    enabled: euclideanRhythm.checked
                 }
                 Label {
                     text: qsTr("unit(s)")
@@ -719,13 +728,13 @@ MuseScore {
     // Plugin settings
     Settings {
         id: settings
-        category: "EuclidianRhythmPlugin"
+        category: "EuclideanRhythmPlugin"
         property alias nbbeats: patternBeats.text
         property alias size: patternSize.text
         property alias duration: duration.text
         property alias unit: unit.unitDuration
         property alias mult: mult.currentIndex
-        property alias euclidianRhythm: euclidianRhythm.checked
+        property alias euclideanRhythm: euclideanRhythm.checked
         property alias freeRhythm: freeRhythm.checked
         property alias altNote: adhocNote.currentIndex
         property alias altOffNote: offbeatNote.currentIndex
@@ -775,7 +784,7 @@ MuseScore {
         text: ""
     }    
     
-    // The core Euclidian rhythm function
+    // The core Euclidean rhythm function
     function isBeat(n) {
 
         var m = n + startAt.value;
@@ -792,7 +801,7 @@ MuseScore {
     function getPattern() {
         var beats = [];
         
-        if(euclidianRhythm.checked) {
+        if(euclideanRhythm.checked) {
             for (var n = 0; n < duration.text; n++) {
                 for (var i = 0; i < patternSize.text; i++) {
                     beats.push(isBeat(i));
@@ -811,7 +820,7 @@ MuseScore {
     function getMergedPattern() {
         var beats=getPattern();
         var summary=[];
-        var defMult = durationmult.get(mult.currentIndex).mult;
+        var defMult = (mult.currentIndex>=0)?durationmult.get(mult.currentIndex).mult:1;
         for (var i = 0; i < beats.length; i++) {
             var play = beats[i];
             var action={index: i, action: play, dur:1};

@@ -6,7 +6,8 @@ The *Euclidean Rhythm Generator* will help you create euclidean (or free rhythm)
 
 <p align="center"><img src="/euclidean/logo.png" Alt="logo" width="300" /></p>
 
-![Score From Template in action](/demo/euclidean-demo.png)
+[![](https://markdown-videos.deta.dev/youtube/ekAY6hZApsQ)](https://youtu.be/ekAY6hZApsQ)
+
 
 ## Usage ##
 TBC

@@ -23,7 +23,7 @@ E.g. : 9/16 ♪ will lead to 9 ♪ being spread over a 16 ♪ duration.
 
 2. **Start at step**: where to start in the pattern. By default, the pattern is stared at its 1st step, but you can decide wherever you want in the pattern<br/>
 E.g. : In previous example, starting at step 3 will lead to
-<p align="center"><img src="/demo/9-16#2.png"/></p>
+<p align="center"><img src="/demo/9-16x2.png"/></p>
 
 3. **Note duration**: by default the _note_ duration is the same as the _step_ duration. However, when possible (i.e. when the notes are followed by rests) you can decide to have the notes longer than the steps.<br/>
 There is a special "fill" mode, where each note is expanded in the all rests that are following the note.<br/>

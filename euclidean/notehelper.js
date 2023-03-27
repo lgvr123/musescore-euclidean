@@ -15,6 +15,7 @@
 /*  - 26/2/23: v2.0.1 documentation
 /*  - 5/3/23: v2.0.2 correct length across bars
 /*  - 6/3/23: v2.0.2 some refactoring and documentation
+/*  - 15/3/23: v2.0.2 changeNote: set the pitch note (I guess I assumed it was already set by the calling function, but this is more generic now).
 /**********************************************/
 // -----------------------------------------------------------------------
 // --- Vesionning-----------------------------------------
@@ -413,6 +414,8 @@ function changeNote(note, toNote) {
         console.warn("changeNote: invalid note type. Expecting 'Note'. Received "+note.userName());
         return;
     }
+    
+    note.pitch=toNote.pitch;
 
     if (toNote.tpc1 !== undefined && toNote.tpc1 !== undefined) {
 		// tpc1 and tpc2 are defined ==> using them

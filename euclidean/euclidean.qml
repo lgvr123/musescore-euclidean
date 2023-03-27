@@ -10,10 +10,8 @@ import "notehelper.js" as NoteHelper
 import "selectionhelper.js" as SelHelper
 
 /**********************************************
-/*  1.0.0: Initial version
-
-// TODO: track <> 0
-
+/*  1.0.0 Beta1: Initial version
+/*  1.0.0 Beta2: Correct selection retrieval on selection change
 
 /**********************************************/
 MuseScore {
@@ -102,11 +100,14 @@ MuseScore {
                   console.log("  But busy");
                   return;
             }
-            // Retrieving the starting position in score
-            positionInScore = retrieveCurrentPosition(); // assigning to "positionInScore" all properties at once
 
             // Retrieving the notes that could be used for the rhythm
             selection = retrieveSelection();
+            console.log("New selection is : "+((selection.length>0)?selection[0].notes[0]:"--"));
+
+            // Retrieving the starting position in score
+            positionInScore = retrieveCurrentPosition(); // assigning to "positionInScore" all properties at once
+
 
             if (selection.length === 0 && useSelection.checked) {
                 useSelection.checked = false;
@@ -1354,7 +1355,7 @@ MuseScore {
 
         }
         score.endCmd(); //-DEBUG
-        ongoing=true;
+        ongoing=false;
 
     }
 

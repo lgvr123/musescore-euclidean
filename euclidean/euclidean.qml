@@ -12,11 +12,13 @@ import "selectionhelper.js" as SelHelper
 /**********************************************
 /*  1.0.0 Beta1: Initial version
 /*  1.0.0 Beta2: Correct selection retrieval on selection change
+/*  1.1.0 (ongoing) : reverse pattern
+/*  1.1.0 (ongoing) : start note sequence at any place
 
 /**********************************************/
 MuseScore {
     menuPath: "Plugins." + qsTr("Euclidean Rhythm")
-    version: "1.0.0"
+    version: "1.1.0"
     requiresScore: true
     description: qsTr("Create an euclidean rhythm")
     pluginType: "dialog"
@@ -240,50 +242,98 @@ MuseScore {
             rowSpacing: 5
             columns: 4
 
-            Canvas {
-                Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                // Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
-                // Layout.margins: 20
-                Layout.leftMargin: 20
-                Layout.rowSpan: 5
-                Layout.column:3
-                Layout.row:1
-                Layout.fillWidth: true
+            RowLayout {
+                Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
+                Layout.rowSpan: 4
+                Layout.column: 2
+                Layout.row: 1
+                // Free rhythm
+                // Use a transparent Item that will remain visible and hence laidout to avoid a re-layout of the rhythm circle 
+                // every time we switch back and forth between Euclidean and Free modes
+                Item {  
+                    Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+                    Layout.preferredWidth: freeGrid.width
+                    Layout.fillHeight: true
+                    ColumnLayout {
+                        Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
+                        visible: freeRhythm.checked
 
-                property int size: 200
-                property int thickness: 20
+                        Grid {
+                            id: freeGrid
+                            Layout.preferredWidth: BeatCheckBox.height * columns
+                            Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
 
-                width: size
-                height: size
+                            columns: 8
+                            spacing: 0
+                            Repeater {
+                                model: patternSize.text
+                                id: freePattern
 
-                id: visual
+                                BeatCheckBox {
+                                    text: (index + 1)
+                                    onToggled: refresh()
+                                }
 
-                onPaint: {
-                    var c = parseInt(patternSize.text);
-                    var delta = Math.PI * 2 / c;
+                            }
 
-                    var ctx = getContext("2d");
+                        }
+                        Button {
+                            Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                            text: qsTr("Reset")
+                            onClicked: {
+                                for (var i = 0; i < freePattern.count; i++) {
+                                    freePattern.itemAt(i).checked = false;
+                                }
+                            }
+                        }
+                        Item {
+                            // filler
+                            Layout.fillHeight: true
+                        }
 
-                    ctx.clearRect(0, 0, size, size);
+                    }
 
-                    var summary=getMergedPattern();
-                    for (var index = 0; index < summary.length; index++) {
-                        var element=summary[index];
-                        var start = (3 * Math.PI / 2) + delta * element.index;
-                        var end = (3 * Math.PI / 2) + delta * (element.index + element.dur) - (Math.min(2 * (2 * Math.PI / 360), delta * 0.5));
+                }
+                // Rhythm circle
+                Canvas {
+                    Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                    // Layout.margins: 20
+                    Layout.leftMargin: 20
 
-                        ctx.beginPath();
-                        ctx.arc(visual.size / 2, visual.size / 2, (visual.size - visual.thickness) / 2, start, end, false);
-                        ctx.lineWidth = visual.thickness
-                            ctx.strokeStyle = (element.action ? sysActivePalette.text : sysActivePalette.mid)
-                            ctx.stroke()
+                    property int size: 200
+                    property int thickness: 20
+
+                    width: size
+                    height: size
+
+                    id: visual
+
+                    onPaint: {
+                        var c = parseInt(patternSize.text);
+                        var delta = Math.PI * 2 / c;
+
+                        var ctx = getContext("2d");
+
+                        ctx.clearRect(0, 0, size, size);
+
+                        var summary = getMergedPattern();
+                        for (var index = 0; index < summary.length; index++) {
+                            var element = summary[index];
+                            var start = (3 * Math.PI / 2) + delta * element.index;
+                            var end = (3 * Math.PI / 2) + delta * (element.index + element.dur) - (Math.min(2 * (2 * Math.PI / 360), delta * 0.5));
+
+                            ctx.beginPath();
+                            ctx.arc(visual.size / 2, visual.size / 2, (visual.size - visual.thickness) / 2, start, end, false);
+                            ctx.lineWidth = visual.thickness
+                                ctx.strokeStyle = (element.action ? sysActivePalette.text : sysActivePalette.mid)
+                                ctx.stroke()
+                        }
+
                     }
 
                 }
 
             }
-
-
             Label {
                 text: qsTr("Type") + ":"
                 Layout.alignment: Qt.AlignLeft
@@ -362,51 +412,17 @@ MuseScore {
                     sizeMult: 1
                 }
                 
+                CheckBox {
+                    id: invert
+                    text: qsTr("Invert")
+                    checked: false
+                    onToggled: refresh()
+                    enabled: euclideanRhythm.checked
+                }
+                
 
             }
 
-
-            // Free rhythm
-            ColumnLayout {
-                Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
-                Layout.rowSpan: 4
-                Layout.column:2
-                Layout.row:1
-                visible: freeRhythm.checked
-
-                Grid {
-                    Layout.preferredWidth: BeatCheckBox.height * columns
-                    Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
-                    
-                    columns: 8
-                    spacing: 0
-                    Repeater {
-                        model: patternSize.text
-                        id: freePattern
-                        
-                        BeatCheckBox {
-                            text: (index + 1)
-                            onToggled: refresh()
-                        }
-
-                    }
-
-                }
-                Button {
-                    Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                    text: qsTr("Reset")
-                    onClicked: {
-                        for(var i=0; i<freePattern.count;i++) {
-                            freePattern.itemAt(i).checked=false;
-                        }
-                    }
-                }
-                Item {
-                    // filler
-                    Layout.fillHeight: true
-                }
-                    
-            }
 
             
 
@@ -492,7 +508,7 @@ MuseScore {
             Rectangle {
                 Layout.column:0
                 Layout.row:6
-                Layout.columnSpan: 4
+                Layout.columnSpan: 3
                 Layout.fillWidth: true
                 Layout.topMargin: 15
                 Layout.bottomMargin: 15
@@ -590,15 +606,42 @@ MuseScore {
                 Layout.columnSpan: 1
                 Layout.alignment: Qt.AlignTop | Qt.AlignLeft
                 ColumnLayout {
+                    ButtonGroup {
+                        id: on
+                    }
                     RadioButton {
                         id: useFirst
                         text: qsTr("First note: %1").arg(notesToText(nnotes(1)))
                         enabled: (clipboard.length > 0 && useClipboard.checked) || (selection.length > 0 && useSelection.checked) || useAdhoc.checked
+                        ButtonGroup.group: on
                     }
-                    RadioButton {
-                        id: cycleNotes
-                        text: qsTr("Cycle accross selection")
-                        enabled: (clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked)
+                    Row {
+                        RadioButton {
+                            id: cycleNotes
+                            text: qsTr("Cycle accross selection from")
+                            enabled: (clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked)
+                            ButtonGroup.group: on
+                        }
+                        SpinBox {
+                            id: startSequenceAt
+                            enabled: cycleNotes.checked && cycleNotes.enabled
+
+                            from: 1
+                            value: 1
+                            to: useClipboard.checked?clipboard.length:selection.length
+                            stepSize: 1
+
+                            validator: IntValidator {
+                                bottom: startSequenceAt.from
+                                top: startSequenceAt.to
+                            }
+
+                            textFromValue: function (value, locale) {
+                                var note=nnotes(value);
+                                return (note?notesToText(note):value);
+                            }
+
+                        }
                     }
                 }
             }
@@ -736,6 +779,7 @@ MuseScore {
         property alias unit: unit.unitDuration
         property alias mult: mult.currentIndex
         property alias euclideanRhythm: euclideanRhythm.checked
+        property alias invert: invert.checked
         property alias freeRhythm: freeRhythm.checked
         property alias altNote: adhocNote.currentIndex
         property alias altOffNote: offbeatNote.currentIndex
@@ -795,7 +839,7 @@ MuseScore {
         var curr = Math.floor(m * coef);
         var prev = Math.floor((m - 1) * coef);
 
-        return (prev < curr);
+        return (!invert.checked)?(prev < curr):(prev>=curr);
 
     }
 
@@ -988,7 +1032,7 @@ MuseScore {
 
     function extractSelection(elements) {
         // Retrieving everything
-        var all = copySelection(elements);
+        var all = SelHelper.copySelection(elements);
 
         // retrieving only the chord elements
         var chords = all.filter(function (e) {
@@ -1003,102 +1047,6 @@ MuseScore {
         }
 
         return chords;
-
-    }
-
-    /**
-     * Copy segment by segment, track by track, the CHORDREST found a this segment.
-     * Includes the annotations at this segment, as well as the notes and their properties
-     */
-    function copySelection(chords) {
-        logThis("Copying " + chords.length + " elements canidates");
-        var targets = [];
-        loopelements:
-        for (var i = 0; i < chords.length; i++) {
-            var current = chords[i];
-
-            if (current.type === Element.NOTE) {
-                logThis("!! note element in the selection. Using its parent's chord instead");
-                current = current.parent;
-
-                console.log("checking if the parent's chord has already been added in %1 elemnts".arg(targets.length));
-                for (var c = 0; c < targets.length; c++) {
-                    var prev = targets[c];
-                    // 28/2/2023: Missing note
-                    // if ((prev.tick === current.parent.tick) && (prev.track === current.track)) {
-                    console.log("- Comparing %1/%2 vs. %3 at %4/%5".arg(current.parent.tick).arg(current.track).arg(prev.userName()).arg(prev.tick).arg(prev.track));
-                    console.log("  - type : %1 vs. Element.CHORD: %2".arg(prev.type).arg(Element.CHORD));
-                    if ((prev.type === Element.CHORD) && (prev.tick === current.parent.tick) && (prev.track === current.track)) {
-                        logThis("dropping this note, because we have already added its parent's chord in the selection");
-                        continue loopelements;
-                    }
-                }
-                logThis("Note found. Adding its parent's chord because this chord is not not been added");
-            }
-
-            logThis("Copying " + i + ": " + current.userName() + " - " + (current.duration ? current.duration.str : "null") + ", notes: " + (current.notes ? current.notes.length : 0));
-            var target = {
-                "_element": current,
-                "type": current.type,
-                "tick": current.parent.tick,
-                "track": current.track,
-                "duration": (current.duration ? {
-                    "numerator": current.duration.numerator,
-                    "denominator": current.duration.denominator,
-                }
-                     : null),
-                "lyrics": current.lyrics,
-                "graceNotes": current.graceNotes,
-                "notes": undefined,
-                "annotations": [],
-                "_username": current.userName(),
-                "userName": function () {
-                    return this._username;
-                }
-            };
-
-            // If CHORD, then remember the notes. Otherwise treat as a rest
-            if (current.type === Element.CHORD) {
-                // target.notes = current.notes; // 26/2/23 current.notes n'est pas une Array donc c'est un peu chiant
-                target.notes = [];
-                for (var n = 0; n < current.notes.length; n++) {
-                    target.notes.push(current.notes[n]);
-                }
-            };
-
-            // Searching for harmonies & other annotations
-            var seg = current;
-            while (seg && seg.type !== Element.SEGMENT) {
-                seg = seg.parent
-            }
-
-            if (seg !== null) {
-                var annotations = seg.annotations;
-                //console.log(annotations.length + " annotations");
-                if (annotations && (annotations.length > 0)) {
-                    var filtered = [];
-                    // annotations=annotations.filter(function(e) {
-                    // return (e.type === Element.HARMONY) && (e.track===current.track);
-                    // });
-                    for (var h = 0; h < annotations.length; h++) {
-                        var e = annotations[h];
-                        if (/*(e.type === Element.HARMONY) &&*/(e.track === current.track))
-                            filtered.push(e);
-                    }
-                    annotations = filtered;
-                    target.annotations = annotations;
-                } else
-                    annotations = []; // DEBUG
-                logThis("--Annotations: " + annotations.length + ((annotations.length > 0) ? (" (\"" + annotations[0].text + "\")") : ""));
-            }
-            // Done
-            targets.push(target);
-            // logThis("--Lyrics: " + target.lyrics.length + ((target.lyrics.length > 0) ? (" (\"" + target.lyrics[0].text + "\")") : ""));
-        }
-
-        logThis("Ending was a copy of " + targets.length + " elements");
-
-        return targets;
 
     }
 
@@ -1260,7 +1208,9 @@ MuseScore {
         console.log("* tick at start " + cursor.tick);
         console.log("* track at start " + cursor.track);
 
-        var step = -1;
+        // var step = -1;
+        var step = startSequenceAt.value - 2; // start at 1 means start at index 0
+        
         
 
         ongoing=true;

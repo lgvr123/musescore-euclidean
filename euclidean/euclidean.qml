@@ -734,26 +734,14 @@ MuseScore {
             }
 
             onAccepted: {
-                // work();
-                /*
-                category: "EuclideanRhythmPlugin"
-                property alias euclideanRhythm: euclideanRhythm.checked
-                property alias freeRhythm: freeRhythm.checked
-                 */
-                var summary = [];
-                summary.push(duration.text);
-                summary.push(patternBeats.text);
-                summary.push(patternSize.text);
-                summary.push(unit.unitDuration);
-                summary.push(mult.model.get(mult.currentIndex)[mult.textRole]);
-                summary.push(!invert.checked ? "+" : "-");
+                console.log(buildSummary()); 
 
-                var what = getNotes();
-                console.log(JSON.stringify(what));
-                summary.push(chordToText(what.on));
-                summary.push(chordToText(what.off));
+                parseSummary("[3/8:2:0.5:1:A4,B5,D5:D6/E6,B8:2]"); 
+                //parseSummary("[3/8:2:0.5:1:A4:B5:1]"); 
+                //parseSummary("[(14)/8:-4;0.5:2:XX,A4,YY:--:2]"); 
+                 
 
-                console.log(summary.join(":"));
+                //work();
 
             }
             onRejected: mainWindow.parent.Window.window.close();
@@ -798,6 +786,7 @@ MuseScore {
         property var freePattern
     }
 
+    
     // Signal onClosing sur la fenêtre parent
     Connections {
         target: mainWindow.parent.Window.window
@@ -879,11 +868,7 @@ MuseScore {
         var defMult = (mult.currentIndex >= 0) ? durationmult.get(mult.currentIndex).mult : 1;
         for (var i = 0; i < beats.length; i++) {
             var play = beats[i];
-            var action = {
-                index: i,
-                action: play,
-                dur: 1
-            };
+            var action={index: i, action: play, dur:1};
             if (play) {
                 var from = i;
                 for (var j = (from + 1); j < (from + ((defMult > 0) ? defMult : 999)) && (j < beats.length); j++) { // defMult==-1 = fill the off-beats with the on-beats
@@ -903,8 +888,7 @@ MuseScore {
                 if (summary[i].action === summary[i + 1].action) {
                     summary[i].dur += summary[i + 1].dur;
                     summary.splice(i + 1, 1); // remove element at (i+1)
-                } else
-                    i++;
+                } else i++;
             }
         }
 
@@ -1071,9 +1055,9 @@ MuseScore {
     }
 
     function chordToText(chords) {
-        console.log(JSON.stringify(chords));
         if (!chords || chords.length === 0)
             return "--";
+        // console.log(JSON.stringify(chords));  // crash
         return chords.map(function (e) {
             return notesToText(e.notes)
         }).join(", ");
@@ -1190,6 +1174,7 @@ MuseScore {
 
         // ~~ notes to use
         var what = getNotes();
+        // var chords = what.on;
         var chords = what.on.map(function (target) {
             var pitches = [];
             for (var j = 0; j < target.notes.length; j++) {
@@ -1203,6 +1188,7 @@ MuseScore {
             return pitches;
         });
 
+        // var offBeatChords = what.off;
         var offBeatChords = what.off.map(function (target) {
             var pitches = [];
             for (var j = 0; j < target.notes.length; j++) {
@@ -1369,5 +1355,190 @@ MuseScore {
         else
             cursor.score.selection.select(el);
 
+    }
+    
+    function parseSummary(summary) {
+        var s = summary.slice(1,-1);
+        console.log(s);
+        var _instr = s.split(":");
+        var _pat, pattSize, pattBeats;
+        // the pattern
+        try {
+            _pat = _instr[0].split("/");
+            pattSize = parseInt(_pat[1]);
+            pattBeats = _pat[0];
+            patternSize.text=pattSize;
+        } catch(error) {
+            console.error("parseSummary: "+ error);
+            return;
+        }
+
+        var pattInvert = false;
+        if (pattBeats[0] === "(") {
+            // free rhythm
+            freeRhythm.checked=true;
+            try {
+                pattBeats = parseInt(pattBeats.slice(1, -1)).toString(2);
+                console.log(Array(pattSize).join("0"));
+                pattBeats=(Array(pattSize).join("0")+pattBeats).slice(-pattSize);
+                console.log(pattBeats);
+                for (var i = 0; i < pattSize; i++) {
+                    console.log(">"+pattBeats[i]);
+                    freePattern.itemAt(i).checked=pattBeats[i]!=="0";
+                }
+            } catch(error) {
+            console.warn("parseSummary: free rhythm: "+ error);
+            }
+            
+        } else {
+            // euclidean rhythm
+            euclideanRhythm.checked=true;
+            try {
+                pattBeats = parseInt(pattBeats);
+                if (pattBeats < 0)
+                    pattInvert = true;
+                pattBeats = Math.abs(pattBeats);
+                patternBeats.text=pattBeats;
+            } catch(error) {
+            console.warn("parseSummary: euclidean rhythm: "+ error);
+            }
+        }
+        
+        invert.checked=pattInvert;
+        
+        // start At
+        try {
+            startAt.value=parseInt(_instr[1]);
+        } catch(error) {
+            console.warn("parseSummary: startAt: "+ error);
+        }
+        
+        // unit duration
+        try {
+            unit.unitDuration=parseInt(_instr[2]);
+        } catch(error) {
+            console.warn("parseSummary: duration unit: "+ error);
+        }
+        
+        // multiplier
+        try {
+            var m=_instr[3];
+            for(var i=0; i < durationmult.count ; i++) {
+                if (durationmult.get(i)[mult.textRole]===mult) {
+                    mult.currentIndex=i;
+                }
+            }
+        } catch(error) {
+            console.warn("parseSummary: multiplier: "+ error);
+        }
+        
+        // note on
+        var chords = summaryToChords(_instr[4]);
+        if (chords.length > 0) {
+            selection = chords;
+            useSelection.checked = true;
+        }
+        
+        // note off
+        chords = summaryToChords(_instr[5]);
+        if (chords.length > 0) {
+            useOffbeatAdhoc.checked = true;
+            for (var j = 0; j < allnotes.count; j++) {
+                var off=chords[0].notes[0];
+                var a = allnotes.get(j);
+                // if (a.extname.name === off.extname.name &&
+                // a.accidentalName === off.accidentalName){
+                if (a===off){
+                    offbeatNote.currentIndex=j;
+                    return;
+                }
+            }
+        } else {
+            useOffbeatRest.checked=true;
+        }
+        
+        // duration
+        try {
+            duration.text=_instr[6];
+        } catch(error) {
+            console.warn("parseSummary: duration: "+ error);
+        }
+        
+        // refresh the rhythm wheel
+        refresh();
+    }
+    
+    function summaryToChords(summary) {
+        // try {
+        if (!summary || summary === "--") {
+            return [];
+        }
+
+        var chords = summary.split(",").map(function (e) {
+            return e.trim();
+        });
+        chords = chords.map(function (c) {
+            var notes = c.split("/").map(function (e) {
+                return e.trim();
+            })
+                // .accidentalName, .extname.name,
+                notes = notes.map(function (n) {
+                n = n.slice(0, 2); // DEBUG: on retire les alérations
+                for (var j = 0; j < allnotes.count; j++) {
+                    var a = allnotes.get(j);
+                    if (a.extname.name === n)
+                        return a;
+                }
+            });
+
+            notes = notes.filter(function (n) {
+                return typeof n !== "undefined";
+            });
+
+            return {
+                "notes": notes
+            };
+
+        });
+
+        chords = chords.filter(function (c) {
+            return c.notes.length > 0;
+        });
+
+        return chords;
+
+    // } catch (error) {}
+
+    }
+    
+    function buildSummary() {
+        var summary = [];
+        var pat="";
+        if(euclideanRhythm.checked) {
+            pat=patternBeats.text * (!invert.checked ? 1 : -1);
+        } else {
+            var beats="";
+            for (var i = 0; i < patternSize.text; i++) {
+                beats+=(freePattern.itemAt(i).checked)?"1":"0";
+            }
+            //var num = BigInt('0b' + beats);
+            pat = "("+parseInt(beats, 2).toString()+")";
+            // pat.toString(2); // back to "110"
+            console.log(pat);
+        }
+        summary.push(pat+"/"+patternSize.text);
+        summary.push(startAt.value);
+        summary.push(unit.unitDuration);
+        summary.push(mult.model.get(mult.currentIndex)[mult.textRole]);
+
+        var what = getNotes();
+        // console.log(JSON.stringify(what)); // crash
+        
+        summary.push(chordToText(what.on));
+        summary.push(chordToText(what.off));
+
+        summary.push(duration.text);
+
+        return "["+summary.join(":")+"]";
     }
 } // MuseScore

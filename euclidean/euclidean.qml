@@ -12,8 +12,9 @@ import "selectionhelper.js" as SelHelper
 /**********************************************
 /*  1.0.0 Beta1: Initial version
 /*  1.0.0 Beta2: Correct selection retrieval on selection change
-/*  1.1.0 (ongoing) : reverse pattern
-/*  1.1.0 (ongoing) : start note sequence at any place
+/*  1.1.0 : reverse pattern
+/*  1.1.0 : start note sequence at any place
+/*  1.1.0 : Write and load from debug
 
 /**********************************************/
 MuseScore {
@@ -232,17 +233,20 @@ MuseScore {
 
         GridLayout {
             Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-            Layout.margins: 20
+            Layout.topMargin: 20
+            Layout.leftMargin: 20
+            Layout.rightMargin: 20
+            Layout.bottomMargin: 0
             Layout.fillWidth: true
             Layout.fillHeight: true
 
             columnSpacing: 5
             rowSpacing: 5
-            columns: 4
+            columns: 3
 
             RowLayout {
                 Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
-                Layout.rowSpan: 4
+                Layout.rowSpan: 3
                 Layout.column: 2
                 Layout.row: 1
                 // Free rhythm
@@ -250,33 +254,45 @@ MuseScore {
                 // every time we switch back and forth between Euclidean and Free modes
                 Item {
                     Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-                    Layout.preferredWidth: freeGrid.width
+                    //Layout.minimumWidth: freeRhythmInfo.width
+                    Layout.minimumWidth: 24*8
                     Layout.fillHeight: true
+                    // color: "yellow"
                     ColumnLayout {
-                        Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
                         visible: freeRhythm.checked
+                        id: freeRhythmInfo
+                        
 
-                        Grid {
-                            id: freeGrid
-                            Layout.preferredWidth: BeatCheckBox.height * columns
-                            Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
+                        ScrollView {
+                            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+                            Layout.maximumHeight: visual.height - freeRhythmInfo.spacing - resetFreeGrid.height
+                            Layout.preferredWidth: freeGrid.width+ScrollBar.horizontal.witdh+ScrollBar.leftPadding
+                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                            clip: true
+                            Grid {
+                                id: freeGrid
+                                width: BeatCheckBox.height * maxColumns
+                                property var maxColumns: 8
+                                columns: maxColumns
+                                spacing: 0
+                                Repeater {
+                                    model: patternSize.value
+                                    id: freePattern
 
-                            columns: 8
-                            spacing: 0
-                            Repeater {
-                                model: patternSize.text
-                                id: freePattern
+                                    BeatCheckBox {
+                                        text: (index + 1)
+                                        onToggled: refresh()
+                                    }
 
-                                BeatCheckBox {
-                                    text: (index + 1)
-                                    onToggled: refresh()
                                 }
 
                             }
-
+                            
                         }
                         Button {
                             Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                            id: resetFreeGrid
                             text: qsTr("Reset")
                             onClicked: {
                                 for (var i = 0; i < freePattern.count; i++) {
@@ -307,7 +323,7 @@ MuseScore {
                     id: visual
 
                     onPaint: {
-                        var c = parseInt(patternSize.text);
+                        var c = patternSize.value;
                         var delta = Math.PI * 2 / c;
 
                         var ctx = getContext("2d");
@@ -386,7 +402,7 @@ MuseScore {
 
                     validator: IntValidator {
                         bottom: 1;
-                        top: parseInt(patternSize.text)
+                        top: patternSize.value
                     }
                 }
                 Label {
@@ -395,6 +411,7 @@ MuseScore {
                 }
                 TextField {
                     Layout.preferredWidth: 40
+                    readonly property int value: { var val=parseInt(patternSize.text); if (isNaN(val) || (val<1)) val=1; return val; }
                     id: patternSize
                     text: "16"
                     selectByMouse: true
@@ -432,9 +449,9 @@ MuseScore {
                 id: startAt
                 enabled: euclideanRhythm.checked
 
-                from: (parseInt(patternSize.text) * (-1))
+                from: (patternSize.value * (-1))
                 value: 0
-                to: (parseInt(patternSize.text) - 1)
+                to: (patternSize.value - 1)
                 stepSize: 1
 
                 validator: IntValidator {
@@ -472,34 +489,55 @@ MuseScore {
                 Label {
                     text: qsTr("unit(s)")
                 }
-            }
 
-            CheckBox {
-                Layout.column: 1
-                Layout.row: 4
-                id: mergeConsecutive
-                text: qsTr("Merge consecutive notes")
-                checked: false
-                onToggled: refresh()
+                CheckBox {
+                    Layout.column: 1
+                    Layout.row: 4
+                    id: mergeConsecutive
+                    text: qsTr("Merge")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Merge consecutive notes")
+                    checked: false
+                    onToggled: refresh()
+                }
             }
 
             Label {
                 Layout.column: 0
-                Layout.row: 5
+                Layout.row: 4
                 text: qsTr("Repeats") + ":"
             }
             TextField {
                 Layout.column: 1
-                Layout.row: 5
+                Layout.row: 4
                 Layout.preferredWidth: 40
                 id: duration
                 text: "1"
                 selectByMouse: true
             }
+            
+            RowLayout {
+                Layout.column: 2
+                Layout.row: 4
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignRight
+                
+                Button {
+                    id: loadPattern
+                    text: qsTr("Load from log")
+                    onClicked: loadFromLog()
+                }
+                
+                CheckBox {
+                    id: addDebug
+                    text: qsTr("log pattern")
+                }
+                
+            }
 
             Rectangle {
                 Layout.column: 0
-                Layout.row: 6
+                Layout.row: 5
                 Layout.columnSpan: 3
                 Layout.fillWidth: true
                 Layout.topMargin: 15
@@ -511,14 +549,14 @@ MuseScore {
 
             Label {
                 Layout.column: 0
-                Layout.row: 7
+                Layout.row: 6
                 text: qsTr("Source") + ":"
                 Layout.alignment: Qt.AlignTop | Qt.AlignLeft
             }
 
             GroupBox {
                 Layout.column: 1
-                Layout.row: 7
+                Layout.row: 6
                 Layout.alignment: Qt.AlignTop | Qt.AlignLeft
                 Layout.columnSpan: 2
 
@@ -584,117 +622,119 @@ MuseScore {
 
             Label {
                 Layout.column: 0
-                Layout.row: 8
+                Layout.row: 7
                 text: qsTr("Use") + ":"
                 Layout.alignment: Qt.AlignTop | Qt.AlignLeft
                 Layout.topMargin: (gpbeat.label) ? gpbeat.label.height : 0
             }
 
-            GroupBox {
+            RowLayout {
                 Layout.column: 1
-                Layout.row: 8
-                title: qsTr("Beat")
-                id: gpbeat
-                Layout.columnSpan: 1
+                Layout.row: 7
+                Layout.columnSpan: 2
                 Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-                ColumnLayout {
-                    ButtonGroup {
-                        id: on
-                    }
-                    RadioButton {
-                        id: useFirst
-                        text: qsTr("First note: %1").arg(notesToText(nnotes(1)))
-                        enabled: (clipboard.length > 0 && useClipboard.checked) || (selection.length > 0 && useSelection.checked) || useAdhoc.checked
-                        ButtonGroup.group: on
-                    }
-                    Row {
+
+                GroupBox {
+                    title: qsTr("Beat")
+                    id: gpbeat
+                    Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+                    ColumnLayout {
+                        ButtonGroup {
+                            id: on
+                        }
                         RadioButton {
-                            id: cycleNotes
-                            text: qsTr("Cycle accross selection from")
-                            enabled: (clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked)
+                            id: useFirst
+                            text: qsTr("First note: %1").arg(notesToText(nnotes(1)))
+                            enabled: (clipboard.length > 0 && useClipboard.checked) || (selection.length > 0 && useSelection.checked) || useAdhoc.checked
                             ButtonGroup.group: on
                         }
-                        SpinBox {
-                            id: startSequenceAt
-                            enabled: cycleNotes.checked && cycleNotes.enabled
-
-                            from: 1
-                            value: 1
-                            to: useClipboard.checked ? clipboard.length : selection.length
-                            stepSize: 1
-
-                            validator: IntValidator {
-                                bottom: startSequenceAt.from
-                                top: startSequenceAt.to
+                        Row {
+                            RadioButton {
+                                id: cycleNotes
+                                text: qsTr("Cycle accross selection from")
+                                enabled: (clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked)
+                                ButtonGroup.group: on
                             }
+                            SpinBox {
+                                id: startSequenceAt
+                                enabled: cycleNotes.checked && cycleNotes.enabled
 
-                            textFromValue: function (value, locale) {
-                                var note = nnotes(value);
-                                return (note ? notesToText(note) : value);
+                                from: 1
+                                value: 1
+                                to: useClipboard.checked ? clipboard.length : selection.length
+                                stepSize: 1
+
+                                validator: IntValidator {
+                                    bottom: startSequenceAt.from
+                                    top: startSequenceAt.to
+                                }
+
+                                textFromValue: function (value, locale) {
+                                    var note = nnotes(value);
+                                    return (note ? notesToText(note) : value);
+                                }
+
                             }
-
                         }
                     }
                 }
-            }
 
-            GroupBox {
-                Layout.column: 2
-                Layout.row: 8
-                title: qsTr("Off-Beat")
-                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
+                GroupBox {
+                    title: qsTr("Off-Beat")
+                    Layout.alignment: Qt.AlignTop | Qt.AlignLeft
 
-                ColumnLayout {
+                    ColumnLayout {
 
-                    anchors.fill: parent
+                        anchors.fill: parent
 
-                    ButtonGroup {
-                        id: off
-                    }
+                        ButtonGroup {
+                            id: off
+                        }
 
-                    RadioButton {
-                        id: useOffbeatRest
-                        text: qsTr("Rest")
-                        enabled: freeRhythm.checked || ((durationmult.count > mult.currentIndex && mult.currentIndex >= 0) ? (durationmult.get(mult.currentIndex).mult >= 0) : true)
-                        ButtonGroup.group: off
-                    }
-
-                    RadioButton {
-                        id: useOffbeatSecond
-                        text: qsTr("Second: %1").arg(notesToText(nnotes(2)))
-                        enabled: useOffbeatRest.enabled && (useFirst.checked) && ((clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked))
-                        ButtonGroup.group: off
-                    }
-
-                    Row {
                         RadioButton {
-                            id: useOffbeatAdhoc
-                            text: qsTr("Use :")
-                            enabled: useOffbeatRest.enabled
+                            id: useOffbeatRest
+                            text: qsTr("Rest")
+                            enabled: freeRhythm.checked || ((durationmult.count > mult.currentIndex && mult.currentIndex >= 0) ? (durationmult.get(mult.currentIndex).mult >= 0) : true)
                             ButtonGroup.group: off
                         }
 
-                        ComboBox {
-                            model: allnotes
-                            textRole: "name"
-                            id: offbeatNote
-                            enabled: useOffbeatAdhoc.checked && useOffbeatAdhoc.enabled
+                        RadioButton {
+                            id: useOffbeatSecond
+                            text: qsTr("Second: %1").arg(notesToText(nnotes(2)))
+                            enabled: useOffbeatRest.enabled && (useFirst.checked) && ((clipboard.length > 1 && useClipboard.checked) || (selection.length > 1 && useSelection.checked))
+                            ButtonGroup.group: off
                         }
+
+                        Row {
+                            RadioButton {
+                                id: useOffbeatAdhoc
+                                text: qsTr("Use :")
+                                enabled: useOffbeatRest.enabled
+                                ButtonGroup.group: off
+                            }
+
+                            ComboBox {
+                                model: allnotes
+                                textRole: "name"
+                                id: offbeatNote
+                                enabled: useOffbeatAdhoc.checked && useOffbeatAdhoc.enabled
+                            }
+                        }
+
                     }
-
                 }
-            }
 
+            }
             Label {
                 Layout.column: 0
-                Layout.row: 9
+                Layout.row: 8
                 Layout.alignment: Qt.AlignTop | Qt.AlignLeft
                 text: qsTr("Where") + ":"
             }
 
             GroupBox {
                 Layout.column: 1
-                Layout.row: 9
+                Layout.row: 8
                 Layout.alignment: Qt.AlignTop | Qt.AlignLeft
                 Layout.columnSpan: 2
                 ButtonGroup {
@@ -720,6 +760,7 @@ MuseScore {
         // Button bar
         DialogButtonBox {
             Layout.fillWidth: true
+            Layout.margins: 0
             spacing: 5
             alignment: Qt.AlignRight
             background.opacity: 0 // hide default white background
@@ -736,12 +777,7 @@ MuseScore {
             onAccepted: {
                 console.log(buildSummary()); 
 
-                parseSummary("[3/8:2:0.5:1:A4,B5,D5:D6/E6,B8:2]"); 
-                //parseSummary("[3/8:2:0.5:1:A4:B5:1]"); 
-                //parseSummary("[(14)/8:-4;0.5:2:XX,A4,YY:--:2]"); 
-                 
-
-                //work();
+                work();
 
             }
             onRejected: mainWindow.parent.Window.window.close();
@@ -793,7 +829,7 @@ MuseScore {
         onClosing: {
             console.log("Saving free pattern to stettings");
             var pArr = [];
-            for (var i = 0; i < patternSize.text; i++) {
+            for (var i = 0; i < patternSize.value; i++) {
                 pArr.push(freePattern.itemAt(i).checked ? 1 : 0);
             }
             settings.freePattern = pArr;
@@ -834,7 +870,7 @@ MuseScore {
 
         var m = n + startAt.value;
 
-        var coef = patternBeats.text / patternSize.text;
+        var coef = patternBeats.text / patternSize.value;
 
         var curr = Math.floor(m * coef);
         var prev = Math.floor((m - 1) * coef);
@@ -848,13 +884,13 @@ MuseScore {
 
         if (euclideanRhythm.checked) {
             for (var n = 0; n < duration.text; n++) {
-                for (var i = 0; i < patternSize.text; i++) {
+                for (var i = 0; i < patternSize.value; i++) {
                     beats.push(isBeat(i));
                 }
             }
         } else {
             for (var n = 0; n < duration.text; n++) {
-                for (var i = 0; i < patternSize.text; i++) {
+                for (var i = 0; i < patternSize.value; i++) {
                     beats.push(freePattern.itemAt(i).checked);
                 }
             }
@@ -1357,6 +1393,16 @@ MuseScore {
 
     }
     
+    function loadFromLog() {
+        // 1) read text in score a selection position
+        // TODO
+        
+        // 2) Parse the result
+        parseSummary("[3/8:2:0.5:fill:A4,B5,D5:D6/E6,B8:2]"); 
+        //parseSummary("[3/8:2:0.5:1:A4:B5:1]"); 
+        //parseSummary("[(14)/8:-4;0.5:2:XX,A4,YY:--:2]"); 
+    }
+    
     function parseSummary(summary) {
         var s = summary.slice(1,-1);
         console.log(s);
@@ -1424,8 +1470,9 @@ MuseScore {
         try {
             var m=_instr[3];
             for(var i=0; i < durationmult.count ; i++) {
-                if (durationmult.get(i)[mult.textRole]===mult) {
+                if (durationmult.get(i)[mult.textRole] === m) {
                     mult.currentIndex=i;
+                    break;
                 }
             }
         } catch(error) {
@@ -1518,7 +1565,7 @@ MuseScore {
             pat=patternBeats.text * (!invert.checked ? 1 : -1);
         } else {
             var beats="";
-            for (var i = 0; i < patternSize.text; i++) {
+            for (var i = 0; i < patternSize.value; i++) {
                 beats+=(freePattern.itemAt(i).checked)?"1":"0";
             }
             //var num = BigInt('0b' + beats);
@@ -1526,7 +1573,7 @@ MuseScore {
             // pat.toString(2); // back to "110"
             console.log(pat);
         }
-        summary.push(pat+"/"+patternSize.text);
+        summary.push(pat+"/"+patternSize.value);
         summary.push(startAt.value);
         summary.push(unit.unitDuration);
         summary.push(mult.model.get(mult.currentIndex)[mult.textRole]);

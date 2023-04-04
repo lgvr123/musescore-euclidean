@@ -9,8 +9,9 @@ import QtQuick.Layouts 1.3
  * - unitFractionNum: the numerator of the fraction to use for durations [ReadOnly]
  * - unitFractionDenum: the denumerator of the fraction to use for durations [ReadOnly]
  *
- * Versions history
+ * Versions history:
  * 1.0.0 Version initiale tirée de TapTempo
+ * 1.0.1 New Binding mechanism
  */
 
 RowLayout {

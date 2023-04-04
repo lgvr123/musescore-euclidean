@@ -39,6 +39,9 @@ MuseScore {
 
     property var theScore
     property var positionInScore
+    property var summary: ""
+    
+    
 
     onRun: {
         // check MuseScore version
@@ -125,14 +128,6 @@ MuseScore {
     }
 
     onPositionInScoreChanged: {
-        /*
-        positionInScore
-        tick: element.tick,
-        track: track,
-        source: "selection",
-        measure: -1,
-        measureTick: -1
-         */
         // txtStatus.text = qsTr("At measure : %1").arg(pis ? pis.measure : qsTr("invalid"));
 
         if (theScore && positionInScore) {
@@ -151,9 +146,15 @@ MuseScore {
                 measure += "/" + ((positionInScore.track % 4) + 1);
 
             txtStatus.text = qsTr("At : %1, measure %2").arg(instru).arg(measure);
+            
+            summary=(positionInScore.summary?positionInScore.summary:"");
+            
         } else {
             txtStatus.text = qsTr("At : invalid");
+            summary="";
         }
+        
+        console.log("Summary : "+summary);
 
     }
 
@@ -290,10 +291,11 @@ MuseScore {
                             }
                             
                         }
-                        Button {
+                        ImageButton {
                             Layout.alignment: Qt.AlignTop | Qt.AlignRight
                             id: resetFreeGrid
-                            text: qsTr("Reset")
+                            imageSource: "cancel.svg"
+                            ToolTip.text: qsTr("Reset")
                             onClicked: {
                                 for (var i = 0; i < freePattern.count; i++) {
                                     freePattern.itemAt(i).checked = false;
@@ -522,9 +524,12 @@ MuseScore {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignRight
                 
-                Button {
+                ImageButton {
                     id: loadPattern
-                    text: qsTr("Load from log")
+                    enabled: (summary!=="")
+                    imageHeight: 25
+                    imageSource: "upload.svg"
+                    ToolTip.text: qsTr("Load from log")
                     onClicked: loadFromLog()
                 }
                 
@@ -938,6 +943,7 @@ MuseScore {
 
     function retrieveCurrentPosition() {
         var pis;
+        var segment;
         if (theScore && theScore.selection != null && theScore.selection.elements.length > 0) {
             var element = theScore.selection.elements[0];
             var track = element.track;
@@ -945,6 +951,7 @@ MuseScore {
                 element = element.parent
             }
             if (element) {
+                segment=element;
                 pis = {
                     tick: element.tick,
                     track: track,
@@ -959,6 +966,7 @@ MuseScore {
             var cursor = theScore.newCursor();
             cursor.rewind(Cursor.SELECTION_START);
             if (cursor.segment) { // something is selected
+                segment=cursor.segment;
                 pis = {
                     tick: cursor.tick,
                     track: cursor.track,
@@ -975,10 +983,16 @@ MuseScore {
                 track: 0,
                 source: "default",
                 measure: 0,
-                measureTick: 0
+                measureTick: 0,
+                summary: undefined
             };
+            
 
         } else {
+            // analysing the summary
+            pis.summary=segment?findSummary(segment):undefined;
+            console.log("pis.summary: "+pis.summary);
+            
             // searching the initial position's measure
             var measure = theScore.firstMeasure;
             var nbMeasure = 1 + measure.noOffset;
@@ -1398,9 +1412,10 @@ MuseScore {
         // TODO
         
         // 2) Parse the result
-        parseSummary("[3/8:2:0.5:fill:A4,B5,D5:D6/E6,B8:2]"); 
+        // parseSummary("[3/8:2:0.5:fill:A4,B5,D5:D6/E6,B8:2]"); 
         //parseSummary("[3/8:2:0.5:1:A4:B5:1]"); 
         //parseSummary("[(14)/8:-4;0.5:2:XX,A4,YY:--:2]"); 
+        parseSummary(summary);
     }
     
     function parseSummary(summary) {
@@ -1461,7 +1476,7 @@ MuseScore {
         
         // unit duration
         try {
-            unit.unitDuration=parseInt(_instr[2]);
+            unit.unitDuration=parseFloat(_instr[2]);
         } catch(error) {
             console.warn("parseSummary: duration unit: "+ error);
         }
@@ -1588,4 +1603,47 @@ MuseScore {
 
         return "["+summary.join(":")+"]";
     }
+
+
+    function addFingeringTextToNote(note, representation, textobj) {
+        // If no fingering found, create a new one
+        if (!textobj) {
+            debug(level_DEBUG, "adding a new fingering");
+            var f = newElement(Element.FINGERING);
+            f.text = representation;
+            f.fontFace = 'Fiati';
+            f.fontSize = 42;
+            // LEFT = 0, RIGHT = 1, HCENTER = 2, TOP = 0, BOTTOM = 4, VCENTER = 8, BASELINE = 16
+            f.align = 2; // HCenter and top
+            // Set text to below the staff
+            f.placement = Placement.BELOW;
+            // Turn on note relative placement
+            f.autoplace = true;
+            note.add(f);
+        } else {
+            textobj.text = representation;
+            debug(level_DEBUG, "exsiting fingering modified");
+        }
+
+    }
+    
+    function findSummary(segment) {
+        var anns = segment.annotations;
+        var staffText;
+        for (var ai = 0; ai < anns.length; ++ai) {
+        console.log("  analysing "+anns[ai].text);
+        console.log("  comparing with "+("["+anns[ai].text.slice(1,-1)+"]"));
+        
+            if ((anns[ai].type === Element.STAFF_TEXT)
+                && (anns[ai].text ===  ("["+anns[ai].text.slice(1,-1)+"]"))) {
+                // Found our reference
+                console.log("    found");
+                staffText = anns[ai].text;
+                break;
+            }
+        }
+
+        return staffText;
+    }
+
 } // MuseScore

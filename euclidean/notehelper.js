@@ -16,6 +16,9 @@
 /*  - 5/3/23: v2.0.2 correct length across bars
 /*  - 6/3/23: v2.0.2 some refactoring and documentation
 /*  - 15/3/23: v2.0.2 changeNote: set the pitch note (I guess I assumed it was already set by the calling function, but this is more generic now).
+/*  - 7/4/23: v2.0.2 buildPitchedNote: accepts note name with accidentals.
+/*  - 7/4/23: v2.0.2 buildPitchedNote: adds names to the built note in the `extname` object (so similar to #enrichNote.
+
 /**********************************************/
 // -----------------------------------------------------------------------
 // --- Vesionning-----------------------------------------
@@ -67,7 +70,13 @@ function enrichNote(note) {
     }
 
     if (note.type != Element.NOTE) {
-        console.warn("enrichNote: invalid note type. Expecting 'Note'. Received "+note.userName());
+        var label;
+        try{
+            label=note.userName()
+        } catch (error) {
+            label=typeof note;
+        }
+        console.warn("enrichNote: invalid note type. Expecting 'Note'. Received "+label);
         return;
     }
     
@@ -110,6 +119,10 @@ function enrichNote(note) {
 
 }
 
+/**
+* Compose a note names based on pitch and a provided tpc.
+* This result can typically found in the `note.extname` object
+*/
 function pitchToName(npitch, ntpc) {
     var tpc = {
         'tpc': 14,
@@ -148,6 +161,13 @@ function pitchToName(npitch, ntpc) {
  * Reconstructed a note pitch information based on the note name and its accidental
  * @param noteName the name of the note, without alteration. Eg "C4", and not "C#4"
  * @param accidental the <b>name</b> of the accidental to use. Eg "SHARP2"
+ 
+  * - OR -
+
+ * @param accidental empty 
+ * @param noteName the name of the note, *with* alteration. Eg "C#4"
+    Recognized alterations are ♭♭, ♭, ♯♯, ♯ 
+ 
  * @return a structure with pitch/tpc information
 ret.pitch : the pitch of the note
 ret.tpc: the value for the note tpc1 and tpc2
@@ -159,19 +179,43 @@ function buildPitchedNote(noteName, accidental) {
         return;
     }
 
-    var name = noteName.substr(0, 1);
-    var octave = parseInt(noteName.substr(1, 3));
-
-    var a = accidental;
     
-    if (!accidental || accidental=="") {
-        a="NONE";
-    } else {        
-        for (var i = 0; i < equivalences.length; i++) {
-            for (var j = 1; j < equivalences[i].length; j++) {
-                if (accidental == equivalences[i][j]) {
-                    a = equivalences[i][0];
-                    break;
+    var octave = parseInt(noteName.slice(-1));
+    //console.log("OCTAVE: "+octave+" ("+noteName +" => "+noteName.slice(-1)+")");
+    var name = noteName.substr(0, 1);
+    var a;
+    if (typeof accidental === "undefined" && noteName.length>2) {
+        var sa=noteName.slice(1,-1);
+        switch (sa) {
+            case "\u266D\u266D": 
+                a="FLAT2";
+                break;
+            case "\u266D": 
+                a="FLAT";
+                break;
+            case "\u266F": 
+                a="SHARP";
+                break;
+            case "\u266F\u266F": 
+                a="SHARP2";
+                break;
+            default : 
+                a="NONE";
+                break;
+        }
+        //console.log("SA: "+noteName+" => "+sa+ " => "+a);
+    } else {
+        a = accidental;
+    
+        if (!accidental || accidental=="") {
+            a="NONE";
+        } else {        
+            for (var i = 0; i < equivalences.length; i++) {
+                for (var j = 1; j < equivalences[i].length; j++) {
+                    if (accidental == equivalences[i][j]) {
+                        a = equivalences[i][0];
+                        break;
+                    }
                 }
             }
         }
@@ -185,7 +229,7 @@ function buildPitchedNote(noteName, accidental) {
     for (var i = 0; i < tpcs.length; i++) {
         var t = tpcs[i];
         if (name == t.raw && a == t.accidental) {
-            //console.log("found with "+t.name);
+            console.log("found with "+t.name);
             tpc = t;
             break;
         }
@@ -204,6 +248,7 @@ function buildPitchedNote(noteName, accidental) {
     }
 
     if (tpc.tpc == -1) {
+        console.warn("fail to find a tpc");
         // not found. Shouldn't occur
         tpc.tpc = 0;
     }
@@ -211,14 +256,21 @@ function buildPitchedNote(noteName, accidental) {
     // pitch
     //console.log("--" + tpc.pitch + "--");
     var pitch = (octave + 1) * 12 + ((tpc.pitch !== undefined) ? tpc.pitch : 0);
+    
+    var extname = pitchToName(pitch, tpc.tpc);
+
 
     var recompose = {
         "pitch": pitch,
         // we store the note as a label ("C4"), we want that note to *look* like a "C4" more than to *sound* like "C4".
         // ==> we force the representation mode by specifying tpc1 to undefined and specifying tpc2
         //"tpc1" : tpc.tpc,
-        "tpc2": tpc.tpc
+        "tpc2": tpc.tpc,
+        
+        "extname": extname
     };
+    
+    
 
     return recompose;
 }
@@ -480,20 +532,20 @@ function getPreferredTpc(tpc, sharp_mode) {
 
 var pitchnotes = ['C', 'C', 'D', 'D', 'E', 'F', 'F', 'G', 'G', 'A', 'A', 'B'];
 
-var tpcs = [new tpcClass(-1, 'F♭♭'),
-    new tpcClass(0, 'C♭♭'),
-    new tpcClass(1, 'G♭♭'),
-    new tpcClass(2, 'D♭♭'),
-    new tpcClass(3, 'A♭♭'),
-    new tpcClass(4, 'E♭♭'),
-    new tpcClass(5, 'B♭♭'),
-    new tpcClass(6, 'F♭'),
-    new tpcClass(7, 'C♭'),
-    new tpcClass(8, 'G♭'),
-    new tpcClass(9, 'D♭'),
-    new tpcClass(10, 'A♭'),
-    new tpcClass(11, 'E♭'),
-    new tpcClass(12, 'B♭'),
+var tpcs = [new tpcClass(-1, 'F\u266D\u266D'),
+    new tpcClass(0, 'C\u266D\u266D'),
+    new tpcClass(1, 'G\u266D\u266D'),
+    new tpcClass(2, 'D\u266D\u266D'),
+    new tpcClass(3, 'A\u266D\u266D'),
+    new tpcClass(4, 'E\u266D\u266D'),
+    new tpcClass(5, 'B\u266D\u266D'),
+    new tpcClass(6, 'F\u266D'),
+    new tpcClass(7, 'C\u266D'),
+    new tpcClass(8, 'G\u266D'),
+    new tpcClass(9, 'D\u266D'),
+    new tpcClass(10, 'A\u266D'),
+    new tpcClass(11, 'E\u266D'),
+    new tpcClass(12, 'B\u266D'),
     new tpcClass(13, 'F'),
     new tpcClass(14, 'C'),
     new tpcClass(15, 'G'),
@@ -501,20 +553,20 @@ var tpcs = [new tpcClass(-1, 'F♭♭'),
     new tpcClass(17, 'A'),
     new tpcClass(18, 'E'),
     new tpcClass(19, 'B'),
-    new tpcClass(20, 'F♯'),
-    new tpcClass(21, 'C♯'),
-    new tpcClass(22, 'G♯'),
-    new tpcClass(23, 'D♯'),
-    new tpcClass(24, 'A♯'),
-    new tpcClass(25, 'E♯'),
-    new tpcClass(26, 'B♯'),
-    new tpcClass(27, 'F♯♯'),
-    new tpcClass(28, 'C♯♯'),
-    new tpcClass(29, 'G♯♯'),
-    new tpcClass(30, 'D♯♯'),
-    new tpcClass(31, 'A♯♯'),
-    new tpcClass(32, 'E♯♯'),
-    new tpcClass(33, 'B♯♯'),
+    new tpcClass(20, 'F\u266F'),
+    new tpcClass(21, 'C\u266F'),
+    new tpcClass(22, 'G\u266F'),
+    new tpcClass(23, 'D\u266F'),
+    new tpcClass(24, 'A\u266F'),
+    new tpcClass(25, 'E\u266F'),
+    new tpcClass(26, 'B\u266F'),
+    new tpcClass(27, 'F\u266F\u266F'),
+    new tpcClass(28, 'C\u266F\u266F'),
+    new tpcClass(29, 'G\u266F\u266F'),
+    new tpcClass(30, 'D\u266F\u266F'),
+    new tpcClass(31, 'A\u266F\u266F'),
+    new tpcClass(32, 'E\u266F\u266F'),
+    new tpcClass(33, 'B\u266F\u266F'),
 ];
 
 function filterTpcs(sharp_mode) {
@@ -1226,16 +1278,16 @@ function tpcClass(tpc, name, accidental) {
 
         var a = name.substring(1, name.len);
         switch (a) {
-        case '♯♯':
+        case '\u266F\u266F':
             this.accidental = 'SHARP2';
             break;
-        case '♯':
+        case '\u266F':
             this.accidental = 'SHARP';
             break;
-        case '♭♭':
+        case '\u266D\u266D':
             this.accidental = 'FLAT2';
             break;
-        case '♭':
+        case '\u266D':
             this.accidental = 'FLAT';
             break;
         default:

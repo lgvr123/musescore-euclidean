@@ -16,6 +16,10 @@ import "selectionhelper.js" as SelHelper
 /*  1.1.0 : start note sequence at any place
 /*  1.1.0 : Write and load from debug
 
+Issues : 
+* matching of accidentals in the UseAsRest: a E# is matched with a F, a Gb is matched with a F#
+* in the UseAsRest a B#4 is matched with a C4 isntead of a C5, so on actave lower
+
 /**********************************************/
 MuseScore {
     menuPath: "Plugins." + qsTr("Euclidean Rhythm")
@@ -38,10 +42,16 @@ MuseScore {
     property var selection: [];
 
     property var theScore
+    /**
+    tick: selection's tick or 0 if no selection found,
+    track: selection's track or 0 if no selection found,
+    source: selection|cursor|default "default" means "no selection found"
+    measure: selection's measure number or 0 if no selection found,
+    measureTick: tick for the selection's measure begin
+    summary: element of type STAFF_TEXT containing a summary that could be reused. null if not found.
+     */
     property var positionInScore
     property var summary: ""
-    
-    
 
     onRun: {
         // check MuseScore version
@@ -101,7 +111,7 @@ MuseScore {
 
     onScoreStateChanged: {
         if (state.selectionChanged) {
-            console.log("!!Selection changed");
+            console.log("!! Score's selection changed");
             if (ongoing) {
                 console.log("  But busy");
                 return;
@@ -114,17 +124,23 @@ MuseScore {
             // Retrieving the starting position in score
             positionInScore = retrieveCurrentPosition(); // assigning to "positionInScore" all properties at once
 
-
-            if (selection.length === 0 && useSelection.checked) {
-                useSelection.checked = false;
-                if (clipboard.length > 0) {
-                    useClipboard.checked = true;
-                } else {
-                    useAdhoc.checked = true;
-                }
-            }
-
         }
+    }
+    
+    onSelectionChanged: {
+        console.log("°° Selection object changed");
+        if (selection.length === 0 && useSelection.checked) {
+            useSelection.checked = false;
+            if (clipboard.length > 0) {
+                useClipboard.checked = true;
+            } else {
+                useAdhoc.checked = true;
+            }
+        } else if (selection.length>1 && useSelection.checked) {
+            cycleNotes.checked=true;
+            startSequenceAt.value=1;
+        }
+        
     }
 
     onPositionInScoreChanged: {
@@ -146,15 +162,15 @@ MuseScore {
                 measure += "/" + ((positionInScore.track % 4) + 1);
 
             txtStatus.text = qsTr("At : %1, measure %2").arg(instru).arg(measure);
-            
-            summary=(positionInScore.summary?positionInScore.summary:"");
-            
+
+            // summary=(positionInScore.summary?positionInScore.summary:"");
+
         } else {
             txtStatus.text = qsTr("At : invalid");
-            summary="";
+            // summary="";
         }
-        
-        console.log("Summary : "+summary);
+
+        //console.log("Summary : "+(positionInScore && positionInScore.summary?positionInScore.summary.text:""));
 
     }
 
@@ -181,10 +197,8 @@ MuseScore {
                     var accidental = ((n > 0) && (name === NoteHelper.pitchnotes[n - 1])) ? "SHARP" : "NONE";
                     name = name + octave;
                     var note = NoteHelper.buildPitchedNote(name, accidental);
-                    note.name = NoteHelper.pitchToName(note.pitch, note.tpc2).fullname;
-                    note.extname = {
-                        name: note.name
-                    }; // tweak for aligning on enrichNote convention
+                    // for presentation in the ComboBox
+                    note.name=note.extname.fullname;
                     notes.push(note);
                 }
             }
@@ -256,18 +270,17 @@ MuseScore {
                 Item {
                     Layout.alignment: Qt.AlignTop | Qt.AlignLeft
                     //Layout.minimumWidth: freeRhythmInfo.width
-                    Layout.minimumWidth: 24*8
+                    Layout.minimumWidth: 24 * 8
                     Layout.fillHeight: true
                     // color: "yellow"
                     ColumnLayout {
                         visible: freeRhythm.checked
                         id: freeRhythmInfo
-                        
 
                         ScrollView {
                             Layout.alignment: Qt.AlignTop | Qt.AlignLeft
                             Layout.maximumHeight: visual.height - freeRhythmInfo.spacing - resetFreeGrid.height
-                            Layout.preferredWidth: freeGrid.width+ScrollBar.horizontal.witdh+ScrollBar.leftPadding
+                            Layout.preferredWidth: freeGrid.width + ScrollBar.horizontal.witdh + ScrollBar.leftPadding
                             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                             ScrollBar.vertical.policy: ScrollBar.AsNeeded
                             clip: true
@@ -289,7 +302,7 @@ MuseScore {
                                 }
 
                             }
-                            
+
                         }
                         ImageButton {
                             Layout.alignment: Qt.AlignTop | Qt.AlignRight
@@ -413,7 +426,12 @@ MuseScore {
                 }
                 TextField {
                     Layout.preferredWidth: 40
-                    readonly property int value: { var val=parseInt(patternSize.text); if (isNaN(val) || (val<1)) val=1; return val; }
+                    readonly property int value: {
+                        var val = parseInt(patternSize.text);
+                        if (isNaN(val) || (val < 1))
+                            val = 1;
+                        return val;
+                    }
                     id: patternSize
                     text: "16"
                     selectByMouse: true
@@ -517,27 +535,28 @@ MuseScore {
                 text: "1"
                 selectByMouse: true
             }
-            
+
             RowLayout {
                 Layout.column: 2
                 Layout.row: 4
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignRight
-                
+
                 ImageButton {
                     id: loadPattern
-                    enabled: (summary!=="")
+                    //enabled: (typeof positionInScore !== undefined) && (typeof positionInScore.summary !== undefined)
+                    enabled: (typeof positionInScore.summary === "object")
                     imageHeight: 25
                     imageSource: "upload.svg"
                     ToolTip.text: qsTr("Load from log")
                     onClicked: loadFromLog()
                 }
-                
+
                 CheckBox {
-                    id: addDebug
+                    id: addSummary
                     text: qsTr("log pattern")
                 }
-                
+
             }
 
             Rectangle {
@@ -780,11 +799,9 @@ MuseScore {
             }
 
             onAccepted: {
-                console.log(buildSummary()); 
-
                 work();
-
             }
+
             onRejected: mainWindow.parent.Window.window.close();
 
         } // DialogButtonBox
@@ -824,10 +841,10 @@ MuseScore {
         property alias freeRhythm: freeRhythm.checked
         property alias altNote: adhocNote.currentIndex
         property alias altOffNote: offbeatNote.currentIndex
+        property alias addSummary: addSummary.checked
         property var freePattern
     }
 
-    
     // Signal onClosing sur la fenêtre parent
     Connections {
         target: mainWindow.parent.Window.window
@@ -909,7 +926,11 @@ MuseScore {
         var defMult = (mult.currentIndex >= 0) ? durationmult.get(mult.currentIndex).mult : 1;
         for (var i = 0; i < beats.length; i++) {
             var play = beats[i];
-            var action={index: i, action: play, dur:1};
+            var action = {
+                index: i,
+                action: play,
+                dur: 1
+            };
             if (play) {
                 var from = i;
                 for (var j = (from + 1); j < (from + ((defMult > 0) ? defMult : 999)) && (j < beats.length); j++) { // defMult==-1 = fill the off-beats with the on-beats
@@ -929,7 +950,8 @@ MuseScore {
                 if (summary[i].action === summary[i + 1].action) {
                     summary[i].dur += summary[i + 1].dur;
                     summary.splice(i + 1, 1); // remove element at (i+1)
-                } else i++;
+                } else
+                    i++;
             }
         }
 
@@ -951,7 +973,7 @@ MuseScore {
                 element = element.parent
             }
             if (element) {
-                segment=element;
+                segment = element;
                 pis = {
                     tick: element.tick,
                     track: track,
@@ -966,7 +988,7 @@ MuseScore {
             var cursor = theScore.newCursor();
             cursor.rewind(Cursor.SELECTION_START);
             if (cursor.segment) { // something is selected
-                segment=cursor.segment;
+                segment = cursor.segment;
                 pis = {
                     tick: cursor.tick,
                     track: cursor.track,
@@ -984,15 +1006,14 @@ MuseScore {
                 source: "default",
                 measure: 0,
                 measureTick: 0,
-                summary: undefined
+                summary: null
             };
-            
 
         } else {
             // analysing the summary
-            pis.summary=segment?findSummary(segment):undefined;
-            console.log("pis.summary: "+pis.summary);
-            
+            pis.summary = segment ? findSummaryText(segment) : null;
+            //console.log("pis.summary: " + (pis.summary?pis.summary.userName():"not found"));
+
             // searching the initial position's measure
             var measure = theScore.firstMeasure;
             var nbMeasure = 1 + measure.noOffset;
@@ -1024,7 +1045,7 @@ MuseScore {
 
             console.log("L'élément est dans la mesure %1.".arg(nbMeasure));
         }
-        console.log(JSON.stringify(pis));
+        // console.log(JSON.stringify(pis));
 
         return pis;
     }
@@ -1114,44 +1135,14 @@ MuseScore {
     }
 
     function notesToText(notes) {
+
         if (!notes || notes.length === 0)
             return "--";
         return notes.map(function (n) {
-            var acc = "";
-            if (n.accidentalName) {
-                switch (n.accidentalName) {
-                case "FLAT":
-                    acc = "\u266D";
-                    break;
-                case "NATURAL":
-                    acc = "\u266E";
-                    break;
-                case "SHARP":
-                    acc = "\u266F";
-                    break;
-                case "FLAT2":
-                    acc = "\u266D\u266D";
-                    break;
-                case "SHARP2":
-                case "SHARP_SHARP":
-                    acc = "\u266F\u266F";
-                    break;
-                case "NATURAL_FLAT":
-                    acc = "\u266E\u266D";
-                    break;
-                case "NATURAL_SHARP":
-                    acc = "\u266E\u266F";
-                    break;
-                case "NONE":
-                    acc = "";
-                    break;
-                default:
-                    acc = "(\u2026)"; // "(...)"
-                    break;
-
-                }
-            }
-            return n.extname.name + acc
+            // Ceci est l'inverse de NotHelper.pitchToName
+            var label=n.extname.fullname;
+            // console.log("> "+label +" <");
+            return label;
         }).join("/");
     }
 
@@ -1200,8 +1191,11 @@ MuseScore {
 
         if (useFirst.checked)
             chords = allchords.slice(0, 1); // "slice" pour garder une array;
-        else
-            chords = allchords;
+        else {
+            // making the returned notes starting from the startAtSequence value
+            var sa=startSequenceAt.value - 1; // value ranges from [1,length] while `slice` requires [0,length-1]
+            chords = allchords.slice(sa).concat(allchords.slice(0,sa));
+        }
 
         // ~~ off-beat chord to be filled
         var offBeatChords = [];
@@ -1210,7 +1204,7 @@ MuseScore {
                 "notes": [allnotes.get(offbeatNote.currentIndex)]
             });
         } else if (useOffbeatSecond.checked && allchords.length >= 2) {
-            offBeatChords.push(allchords.slice(1, 1)); // "slice" pour garder une array;
+            offBeatChords.push(allchords[1]); // "slice" pour garder une array;
         }
 
         return {
@@ -1287,8 +1281,8 @@ MuseScore {
         console.log("* tick at start " + cursor.tick);
         console.log("* track at start " + cursor.track);
 
-        // var step = -1;
-        var step = startSequenceAt.value - 2; // start at 1 means start at index 0
+        var step = -1;
+        // var step = startSequenceAt.value - 2; // start at 1 means start at index 0
 
 
         ongoing = true;
@@ -1347,7 +1341,6 @@ MuseScore {
                 // == Off-beat: Rest ==
                 cursor.setDuration(realDuration.numerator, realDuration.denominator);
                 console.log("adding rest at " + cur_time + " of " + realDuration.str);
-                // TODO Faire une belle fonction qui tient compte de la durée disponible dans la mesure et retourne le dernier silence créé.
                 cursor.addRest();
                 cursor.rewindToTick(cur_time);
                 chordRest = cursor.element;
@@ -1381,6 +1374,10 @@ MuseScore {
             // score.endCmd(); //+DEBUG
 
         }
+
+        var summaryText=addSummary.checked?buildSummary():undefined;
+        addSummaryText(summaryText, tick);
+
         score.endCmd(); //-DEBUG
         ongoing = false;
 
@@ -1406,135 +1403,139 @@ MuseScore {
             cursor.score.selection.select(el);
 
     }
-    
+
     function loadFromLog() {
-        // 1) read text in score a selection position
-        // TODO
-        
-        // 2) Parse the result
-        // parseSummary("[3/8:2:0.5:fill:A4,B5,D5:D6/E6,B8:2]"); 
-        //parseSummary("[3/8:2:0.5:1:A4:B5:1]"); 
-        //parseSummary("[(14)/8:-4;0.5:2:XX,A4,YY:--:2]"); 
-        parseSummary(summary);
+        // parseSummary("[3/8:2:0.5:fill:A4,B5,D5:D6/E6,B8:2]");
+        //parseSummary("[3/8:2:0.5:1:A4:B5:1]");
+        //parseSummary("[(14)/8:-4;0.5:2:XX,A4,YY:--:2]");
+        // if (positionInScore && positionInScore.summary)
+        if (positionInScore.summary)
+            parseSummary(positionInScore.summary.text);
     }
-    
+
     function parseSummary(summary) {
-        var s = summary.slice(1,-1);
+        var s = summary.slice(1, -1);
         console.log(s);
         var _instr = s.split(":");
-        var _pat, pattSize, pattBeats;
+        var _pat,
+        pattSize,
+        pattBeats;
         // the pattern
         try {
             _pat = _instr[0].split("/");
             pattSize = parseInt(_pat[1]);
             pattBeats = _pat[0];
-            patternSize.text=pattSize;
-        } catch(error) {
-            console.error("parseSummary: "+ error);
+            patternSize.text = pattSize;
+        } catch (error) {
+            console.error("parseSummary: " + error);
             return;
         }
 
         var pattInvert = false;
         if (pattBeats[0] === "(") {
             // free rhythm
-            freeRhythm.checked=true;
+            freeRhythm.checked = true;
             try {
                 pattBeats = parseInt(pattBeats.slice(1, -1)).toString(2);
                 console.log(Array(pattSize).join("0"));
-                pattBeats=(Array(pattSize).join("0")+pattBeats).slice(-pattSize);
+                pattBeats = (Array(pattSize).join("0") + pattBeats).slice(-pattSize);
                 console.log(pattBeats);
                 for (var i = 0; i < pattSize; i++) {
-                    console.log(">"+pattBeats[i]);
-                    freePattern.itemAt(i).checked=pattBeats[i]!=="0";
+                    console.log(">" + pattBeats[i]);
+                    freePattern.itemAt(i).checked = pattBeats[i] !== "0";
                 }
-            } catch(error) {
-            console.warn("parseSummary: free rhythm: "+ error);
+            } catch (error) {
+                console.warn("parseSummary: free rhythm: " + error);
             }
-            
+
         } else {
             // euclidean rhythm
-            euclideanRhythm.checked=true;
+            euclideanRhythm.checked = true;
             try {
                 pattBeats = parseInt(pattBeats);
                 if (pattBeats < 0)
                     pattInvert = true;
                 pattBeats = Math.abs(pattBeats);
-                patternBeats.text=pattBeats;
-            } catch(error) {
-            console.warn("parseSummary: euclidean rhythm: "+ error);
+                patternBeats.text = pattBeats;
+            } catch (error) {
+                console.warn("parseSummary: euclidean rhythm: " + error);
             }
         }
-        
-        invert.checked=pattInvert;
-        
+
+        invert.checked = pattInvert;
+
         // start At
         try {
-            startAt.value=parseInt(_instr[1]);
-        } catch(error) {
-            console.warn("parseSummary: startAt: "+ error);
+            var sa = parseInt(_instr[1]);
+            if (sa>=1) sa--; // log range is ...,-1,1,2,..., while value range is ...,-1,0,1,...
+            startAt.value = sa; 
+        } catch (error) {
+            console.warn("parseSummary: startAt: " + error);
         }
-        
+
         // unit duration
         try {
-            unit.unitDuration=parseFloat(_instr[2]);
-        } catch(error) {
-            console.warn("parseSummary: duration unit: "+ error);
+            unit.unitDuration = parseFloat(_instr[2]);
+        } catch (error) {
+            console.warn("parseSummary: duration unit: " + error);
         }
-        
+
         // multiplier
         try {
-            var m=_instr[3];
-            for(var i=0; i < durationmult.count ; i++) {
+            var m = _instr[3];
+            for (var i = 0; i < durationmult.count; i++) {
                 if (durationmult.get(i)[mult.textRole] === m) {
-                    mult.currentIndex=i;
+                    mult.currentIndex = i;
                     break;
                 }
             }
-        } catch(error) {
-            console.warn("parseSummary: multiplier: "+ error);
+        } catch (error) {
+            console.warn("parseSummary: multiplier: " + error);
         }
-        
+
         // note on
         var chords = summaryToChords(_instr[4]);
         if (chords.length > 0) {
-            selection = chords;
             useSelection.checked = true;
+            console.log("¨¨Changing selection while parsing the summary");
+            selection = chords;
         }
-        
+
         // note off
         chords = summaryToChords(_instr[5]);
         if (chords.length > 0) {
             useOffbeatAdhoc.checked = true;
             for (var j = 0; j < allnotes.count; j++) {
-                var off=chords[0].notes[0];
+                var off = chords[0].notes[0];
                 var a = allnotes.get(j);
-                // if (a.extname.name === off.extname.name &&
-                // a.accidentalName === off.accidentalName){
-                if (a===off){
-                    offbeatNote.currentIndex=j;
+                // if (a === off) {
+                if (a.pitch === off.pitch) {
+                    offbeatNote.currentIndex = j;
                     return;
                 }
             }
         } else {
-            useOffbeatRest.checked=true;
+            useOffbeatRest.checked = true;
         }
-        
+
         // duration
         try {
-            duration.text=_instr[6];
-        } catch(error) {
-            console.warn("parseSummary: duration: "+ error);
+            duration.text = _instr[6];
+        } catch (error) {
+            console.warn("parseSummary: duration: " + error);
         }
-        
+
         // refresh the rhythm wheel
         refresh();
     }
-    
+
     function summaryToChords(summary) {
         // try {
         if (!summary || summary === "--") {
             return [];
         }
+        
+        console.log("parsing chord summary: "+summary);
 
         var chords = summary.split(",").map(function (e) {
             return e.trim();
@@ -1545,12 +1546,19 @@ MuseScore {
             })
                 // .accidentalName, .extname.name,
                 notes = notes.map(function (n) {
-                n = n.slice(0, 2); // DEBUG: on retire les alérations
-                for (var j = 0; j < allnotes.count; j++) {
-                    var a = allnotes.get(j);
-                    if (a.extname.name === n)
-                        return a;
-                }
+                // for (var j = 0; j < allnotes.count; j++) {
+                    // var a = allnotes.get(j);
+                    // console.log("comparing "+a.extname.fullname+" with "+n);
+                    // if (a.extname.fullname === n)
+                        // return a;
+                // }
+                var a=NoteHelper.buildPitchedNote(n);
+                console.log(JSON.stringify(a));
+
+                // for presentation in the ComboBox
+                a.name=a.extname.fullname;
+                
+                return a;
             });
 
             notes = notes.filter(function (n) {
@@ -1569,81 +1577,95 @@ MuseScore {
 
         return chords;
 
-    // } catch (error) {}
+        // } catch (error) {}
 
     }
-    
+
     function buildSummary() {
         var summary = [];
-        var pat="";
-        if(euclideanRhythm.checked) {
-            pat=patternBeats.text * (!invert.checked ? 1 : -1);
+        var pat = "";
+        if (euclideanRhythm.checked) {
+            pat = patternBeats.text * (!invert.checked ? 1 : -1);
         } else {
-            var beats="";
+            var beats = "";
             for (var i = 0; i < patternSize.value; i++) {
-                beats+=(freePattern.itemAt(i).checked)?"1":"0";
+                beats += (freePattern.itemAt(i).checked) ? "1" : "0";
             }
             //var num = BigInt('0b' + beats);
-            pat = "("+parseInt(beats, 2).toString()+")";
+            pat = "(" + parseInt(beats, 2).toString() + ")";
             // pat.toString(2); // back to "110"
             console.log(pat);
         }
-        summary.push(pat+"/"+patternSize.value);
-        summary.push(startAt.value);
+        summary.push(pat + "/" + patternSize.value);
+        summary.push((startAt.value>=0)?startAt.value+1:startAt.value);
         summary.push(unit.unitDuration);
         summary.push(mult.model.get(mult.currentIndex)[mult.textRole]);
 
         var what = getNotes();
         // console.log(JSON.stringify(what)); // crash
-        
+
         summary.push(chordToText(what.on));
         summary.push(chordToText(what.off));
 
         summary.push(duration.text);
 
-        return "["+summary.join(":")+"]";
+        return "[" + summary.join(":") + "]";
     }
 
+    function addSummaryText(sumText, tick) {
+        console.log("addSummaryText : "+(sumText?sumText:"undefined")+" - "+tick+"/"+positionInScore.track);
+        console.log(tick+" -- "+parseInt(tick) + " -- "+!(parseInt(tick)>=0));
+        console.log(typeof positionInScore);
+        if (typeof positionInScore === "undefined")
+            return;
+        if (!(parseInt(tick)>=0))
+            return;
+        
+        
+        var staffText = positionInScore.summary;
+        console.log("Reusing :"+(staffText?staffText.userName():"--"));
+        console.log("Reusing :"+(typeof staffText));
 
-    function addFingeringTextToNote(note, representation, textobj) {
+
         // If no fingering found, create a new one
-        if (!textobj) {
-            debug(level_DEBUG, "adding a new fingering");
-            var f = newElement(Element.FINGERING);
-            f.text = representation;
-            f.fontFace = 'Fiati';
-            f.fontSize = 42;
-            // LEFT = 0, RIGHT = 1, HCENTER = 2, TOP = 0, BOTTOM = 4, VCENTER = 8, BASELINE = 16
-            f.align = 2; // HCenter and top
-            // Set text to below the staff
-            f.placement = Placement.BELOW;
-            // Turn on note relative placement
-            f.autoplace = true;
-            note.add(f);
-        } else {
-            textobj.text = representation;
-            debug(level_DEBUG, "exsiting fingering modified");
+        if (sumText && (!staffText)) {
+            var f = newElement(Element.STAFF_TEXT);
+            f.text = sumText;
+            var cur = theScore.newCursor();
+            cur.rewindToTick(tick);
+            cur.track = positionInScore.track;
+            cur.add(f);
+            console.log("new text added at "+cur.tick+"/"+cur.track);
+            positionInScore.summary=f;
+        } else if (sumText && (staffText)) {
+            staffText.text = sumText;
+            console.log("Exsiting text modified");
+        } else if (!sumText && (staffText)) {
+            staffText.remove();
+            console.log("Exsiting text removed");
+            positionInScore.summary=null;
         }
 
     }
-    
-    function findSummary(segment) {
+
+    function findSummaryText(segment) {
         var anns = segment.annotations;
         var staffText;
         for (var ai = 0; ai < anns.length; ++ai) {
-        console.log("  analysing "+anns[ai].text);
-        console.log("  comparing with "+("["+anns[ai].text.slice(1,-1)+"]"));
-        
+            console.log("  analysing " + anns[ai].text);
+            console.log("  comparing with " + ("[" + anns[ai].text.slice(1, -1) + "]"));
+
             if ((anns[ai].type === Element.STAFF_TEXT)
-                && (anns[ai].text ===  ("["+anns[ai].text.slice(1,-1)+"]"))) {
+                 && (anns[ai].text === ("[" + anns[ai].text.slice(1, -1) + "]"))) {
                 // Found our reference
                 console.log("    found");
-                staffText = anns[ai].text;
+                staffText = anns[ai];
                 break;
             }
         }
 
         return staffText;
+        
     }
 
 } // MuseScore

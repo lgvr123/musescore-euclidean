@@ -15,6 +15,8 @@ import "selectionhelper.js" as SelHelper
 /*  1.1.0 : reverse pattern
 /*  1.1.0 : start note sequence at any place
 /*  1.1.0 : Write and load from debug
+/*  1.1.1 : New "Repeat" fill mode
+/*  1.1.1 : Allow the use the fill mode in freeRhythm
 
 Issues : 
 * matching of accidentals in the UseAsRest: a E# is matched with a F, a Gb is matched with a F#
@@ -237,6 +239,10 @@ MuseScore {
                 text: qsTr("fill"),
                 mult: -1
             });
+            durationmult.append({
+                text: qsTr("repeat"),
+                mult: -2
+            });
         }
 
     }
@@ -354,7 +360,7 @@ MuseScore {
                             ctx.beginPath();
                             ctx.arc(visual.size / 2, visual.size / 2, (visual.size - visual.thickness) / 2, start, end, false);
                             ctx.lineWidth = visual.thickness
-                                ctx.strokeStyle = (element.action ? sysActivePalette.text : sysActivePalette.mid)
+                                ctx.strokeStyle = (element.action ? (element.repeat ? sysActivePalette.shadow : sysActivePalette.text) : sysActivePalette.mid)
                                 ctx.stroke()
                         }
 
@@ -504,7 +510,7 @@ MuseScore {
                     id: mult
                     textRole: "text"
                     onActivated: refresh()
-                    enabled: euclideanRhythm.checked
+                    // enabled: euclideanRhythm.checked
                 }
                 Label {
                     text: qsTr("unit(s)")
@@ -924,22 +930,29 @@ MuseScore {
         var beats = getPattern();
         var summary = [];
         var defMult = (mult.currentIndex >= 0) ? durationmult.get(mult.currentIndex).mult : 1;
+        // var defMult = (freeRhythm.checked? 1:(mult.currentIndex >= 0) ? durationmult.get(mult.currentIndex).mult : 1);
+        // defMult==-2, = repeat => no multiplier, defMult==-1 = fill the off-beats with the on-beats => infinite multiplier
+        var useMult = (defMult > 0) ? defMult : ( (defMult===-2)?1:999); 
         for (var i = 0; i < beats.length; i++) {
             var play = beats[i];
             var action = {
                 index: i,
                 action: play,
+                repeat: false,
                 dur: 1
             };
             if (play) {
                 var from = i;
-                for (var j = (from + 1); j < (from + ((defMult > 0) ? defMult : 999)) && (j < beats.length); j++) { // defMult==-1 = fill the off-beats with the on-beats
+                for (var j = (from + 1); j < (from + useMult) && (j < beats.length); j++) { 
                     if (beats[j]) {
                         break;
                     }
                     action.dur++;
                     i++;
                 }
+            } else if (defMult===-2) {
+                action.action=true;
+                action.repeat=true;
             }
             summary.push(action);
         }
@@ -954,7 +967,8 @@ MuseScore {
                     i++;
             }
         }
-
+        
+        
         return summary;
 
     }
@@ -1293,6 +1307,7 @@ MuseScore {
             var realDuration = fraction(unit.unitFractionNum * item.dur, unit.unitFractionDenum);
 
             console.log("---- " + i + " ----");
+            console.log("using: "+JSON.stringify(item));
 
             console.log((play ? "=> ON" : "=> OFF"));
 
@@ -1319,7 +1334,8 @@ MuseScore {
 
             if (play) {
                 // == On-beat: Note ==
-                step = step + 1;
+                if (step<0 || !item.repeat) 
+                    step = step + 1;
 
                 var idx = step % chords.length;
                 var target = chords[idx];

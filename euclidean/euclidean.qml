@@ -17,15 +17,17 @@ import "selectionhelper.js" as SelHelper
 /*  1.1.0 : Write and load from debug
 /*  1.1.1 : New "Repeat" fill mode
 /*  1.1.1 : Allow the use the fill mode in freeRhythm
+/*  1.1.2 : Keep the free pattern when the pattern size changes
 
 Issues : 
 * matching of accidentals in the UseAsRest: a E# is matched with a F, a Gb is matched with a F#
 * in the UseAsRest a B#4 is matched with a C4 isntead of a C5, so on actave lower
+* if a logging exist at the same segment but on a different track it is used instead of using/creating one on the currrent track
 
 /**********************************************/
 MuseScore {
     menuPath: "Plugins." + qsTr("Euclidean Rhythm")
-    version: "1.1.0"
+    version: "1.1.2"
     requiresScore: true
     description: qsTr("Create an euclidean rhythm")
     pluginType: "dialog"
@@ -54,6 +56,7 @@ MuseScore {
      */
     property var positionInScore
     property var summary: ""
+    property int nbSteps
 
     onRun: {
         // check MuseScore version
@@ -297,8 +300,13 @@ MuseScore {
                                 columns: maxColumns
                                 spacing: 0
                                 Repeater {
-                                    model: patternSize.value
+                                    model: nbSteps
                                     id: freePattern
+                                    onModelChanged: {
+                                        console.log("!!!Model Changed to "+nbSteps);
+                                        console.log("=> at 1: "+freePattern.itemAt(0).checked);
+                                    }
+                                        
 
                                     BeatCheckBox {
                                         text: (index + 1)
@@ -344,7 +352,7 @@ MuseScore {
                     id: visual
 
                     onPaint: {
-                        var c = patternSize.value;
+                        var c = nbSteps;
                         var delta = Math.PI * 2 / c;
 
                         var ctx = getContext("2d");
@@ -423,7 +431,7 @@ MuseScore {
 
                     validator: IntValidator {
                         bottom: 1;
-                        top: patternSize.value
+                        top: nbSteps
                     }
                 }
                 Label {
@@ -441,7 +449,29 @@ MuseScore {
                     id: patternSize
                     text: "16"
                     selectByMouse: true
-                    onDisplayTextChanged: refresh()
+                    // onDisplayTextChanged: refresh()
+                    onAccepted: {
+                        console.log("!!! patternSize Accepted to "+patternSize.value);
+                        nbSteps=patternSize.value;
+                        refresh()
+                    }
+
+                    onValueChanged: {
+                        console.log("!!! patternSize valueChanged to "+patternSize.value+"/"+patternSize.text);
+                    }
+
+                    onTextChanged: {
+                        console.log("!!! patternSize textChanged to "+patternSize.value+"/"+patternSize.text);
+                    }
+
+                    onEditingFinished: {
+                        console.log("!!! patternSize editingFinished to "+patternSize.value+"/"+patternSize.text);
+                    }
+
+                    onTextEdited: {
+                        console.log("!!! patternSize editingFinished to "+patternSize.value+"/"+patternSize.text);
+                    }
+
                     validator: IntValidator {
                         bottom: 1;
                         top: 999;
@@ -475,9 +505,9 @@ MuseScore {
                 id: startAt
                 enabled: euclideanRhythm.checked
 
-                from: (patternSize.value * (-1))
+                from: (nbSteps * (-1))
                 value: 0
-                to: (patternSize.value - 1)
+                to: (nbSteps - 1)
                 stepSize: 1
 
                 validator: IntValidator {
@@ -857,7 +887,7 @@ MuseScore {
         onClosing: {
             console.log("Saving free pattern to stettings");
             var pArr = [];
-            for (var i = 0; i < patternSize.value; i++) {
+            for (var i = 0; i < nbSteps; i++) {
                 pArr.push(freePattern.itemAt(i).checked ? 1 : 0);
             }
             settings.freePattern = pArr;
@@ -898,7 +928,7 @@ MuseScore {
 
         var m = n + startAt.value;
 
-        var coef = patternBeats.text / patternSize.value;
+        var coef = patternBeats.text / nbSteps;
 
         var curr = Math.floor(m * coef);
         var prev = Math.floor((m - 1) * coef);
@@ -912,13 +942,13 @@ MuseScore {
 
         if (euclideanRhythm.checked) {
             for (var n = 0; n < duration.text; n++) {
-                for (var i = 0; i < patternSize.value; i++) {
+                for (var i = 0; i < nbSteps; i++) {
                     beats.push(isBeat(i));
                 }
             }
         } else {
             for (var n = 0; n < duration.text; n++) {
-                for (var i = 0; i < patternSize.value; i++) {
+                for (var i = 0; i < nbSteps; i++) {
                     beats.push(freePattern.itemAt(i).checked);
                 }
             }
@@ -1604,7 +1634,7 @@ MuseScore {
             pat = patternBeats.text * (!invert.checked ? 1 : -1);
         } else {
             var beats = "";
-            for (var i = 0; i < patternSize.value; i++) {
+            for (var i = 0; i < nbSteps; i++) {
                 beats += (freePattern.itemAt(i).checked) ? "1" : "0";
             }
             //var num = BigInt('0b' + beats);
@@ -1612,7 +1642,7 @@ MuseScore {
             // pat.toString(2); // back to "110"
             console.log(pat);
         }
-        summary.push(pat + "/" + patternSize.value);
+        summary.push(pat + "/" + nbSteps);
         summary.push((startAt.value>=0)?startAt.value+1:startAt.value);
         summary.push(unit.unitDuration);
         summary.push(mult.model.get(mult.currentIndex)[mult.textRole]);

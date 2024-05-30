@@ -16,7 +16,10 @@ import "selectionhelper.js" as SelHelper
 /*  1.1.0 : start note sequence at any place
 /*  1.1.0 : Write and load from debug
 /*  1.1.1 : New "Repeat" fill mode
-/*  1.1.1 : Allow the use the fill mode in freeRhythm
+/*  1.2.0 : Allow the use the fill mode in freeRhythm
+/*  1.2.0 : Bug: the pattern does not start at the correct position when a ChordRest is not defined at the same position on the track 0
+/*  1.2.0 : Bug: The pattern summary was always written on the first staff.
+
 
 Issues : 
 * matching of accidentals in the UseAsRest: a E# is matched with a F, a Gb is matched with a F#
@@ -1025,7 +1028,7 @@ MuseScore {
 
         } else {
             // analysing the summary
-            pis.summary = segment ? findSummaryText(segment) : null;
+            pis.summary = segment ? findSummaryText(segment, pis.track) : null;
             //console.log("pis.summary: " + (pis.summary?pis.summary.userName():"not found"));
 
             // searching the initial position's measure
@@ -1289,9 +1292,9 @@ MuseScore {
         else
             tick = positionInScore.measureTick;
 
-        cursor.rewindToTick(tick);
         cursor.track = positionInScore.track;
         cursor.filter = Segment.ChordRest;
+        cursor.rewindToTick(tick);
         console.log("* tick at start " + cursor.tick);
         console.log("* track at start " + cursor.track);
 
@@ -1664,15 +1667,25 @@ MuseScore {
 
     }
 
-    function findSummaryText(segment) {
+    function findSummaryText(segment, eTrack) {
         var anns = segment.annotations;
         var staffText;
+        var eStaff=eTrack?Math.trunc(eTrack/4):0;
         for (var ai = 0; ai < anns.length; ++ai) {
             console.log("  analysing " + anns[ai].text);
             console.log("  comparing with " + ("[" + anns[ai].text.slice(1, -1) + "]"));
+		    console.log("  track " + anns[ai].track);
+            
+            // Rem: les STAFF_TEXT sont toujours la voix 1 => comparer les tracks ensemble ne fonctionnent pas
+            // => on calcule un staffId
+            var aStaff = Math.trunc(anns[ai].track/4);
+
+		    console.log("  staff " + aStaff);
 
             if ((anns[ai].type === Element.STAFF_TEXT)
-                 && (anns[ai].text === ("[" + anns[ai].text.slice(1, -1) + "]"))) {
+                && (anns[ai].text === ("[" + anns[ai].text.slice(1, -1) + "]"))
+                && (aStaff === eStaff)
+             ) {
                 // Found our reference
                 console.log("    found");
                 staffText = anns[ai];

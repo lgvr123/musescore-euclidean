@@ -17,7 +17,8 @@
 /*  - 6/3/23: v2.0.2 some refactoring and documentation
 /*  - 15/3/23: v2.0.2 changeNote: set the pitch note (I guess I assumed it was already set by the calling function, but this is more generic now).
 /*  - 7/4/23: v2.0.2 buildPitchedNote: accepts note name with accidentals.
-/*  - 7/4/23: v2.0.2 buildPitchedNote: adds names to the built note in the `extname` object (so similar to #enrichNote.
+/*  - 7/4/23: v2.0.2 buildPitchedNote: adds names to the built note in the `extname` object (so similar to #enrichNote).
+/*  - 03/06/24: v2.0.3 buildPitchedNote: allow for "b","#" as valid alteration signs (along with the unicode versiosns).
 
 /**********************************************/
 // -----------------------------------------------------------------------
@@ -28,7 +29,7 @@ function checktVersion(expected) {
     return checkVersion(expected);
 }
 function checkVersion(expected) {
-    var version = "2.0.2";
+    var version = "2.0.3";
 
     var aV = version.split('.').map(function (v) {
         return parseInt(v);
@@ -188,15 +189,20 @@ function buildPitchedNote(noteName, accidental) {
         var sa=noteName.slice(1,-1);
         switch (sa) {
             case "\u266D\u266D": 
+            case: "bb":
                 a="FLAT2";
                 break;
             case "\u266D": 
+            case: "b":
                 a="FLAT";
                 break;
             case "\u266F": 
+            case: "#":
                 a="SHARP";
                 break;
             case "\u266F\u266F": 
+            case: "##":
+            case: "x":
                 a="SHARP2";
                 break;
             default : 

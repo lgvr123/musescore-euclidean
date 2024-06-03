@@ -19,6 +19,7 @@ import "selectionhelper.js" as SelHelper
 /*  1.2.0 : Allow the use the fill mode in freeRhythm
 /*  1.2.0 : Bug: the pattern does not start at the correct position when a ChordRest is not defined at the same position on the track 0
 /*  1.2.0 : Bug: The pattern summary was always written on the first staff.
+/*  1.2.0 : CR: Allow ascii symbols for alterations in the pattern summaries
 
 
 Issues : 
@@ -1651,8 +1652,8 @@ MuseScore {
             var f = newElement(Element.STAFF_TEXT);
             f.text = sumText;
             var cur = theScore.newCursor();
-            cur.rewindToTick(tick);
             cur.track = positionInScore.track;
+            cur.rewindToTick(tick);
             cur.add(f);
             console.log("new text added at "+cur.tick+"/"+cur.track);
             positionInScore.summary=f;

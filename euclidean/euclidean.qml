@@ -19,7 +19,8 @@ import "selectionhelper.js" as SelHelper
 /*  1.2.0 : Allow the use the fill mode in freeRhythm
 /*  1.2.0 : Bug: the pattern does not start at the correct position when a ChordRest is not defined at the same position on the track 0
 /*  1.2.0 : Bug: The pattern summary was always written on the first staff.
-/*  1.2.0 : CR: Allow ascii symbols for alterations in the pattern summaries
+/*  1.2.0 : CR: Allow ascii symbols for alterations in the pattern summaries (noteHelper 2.0.3)
+/*  1.2.0 : CR: Option to stop the pattern when pattern summary is encountered
 
 
 Issues : 
@@ -537,13 +538,23 @@ MuseScore {
                 Layout.row: 4
                 text: qsTr("Repeats") + ":"
             }
-            TextField {
+            RowLayout {
                 Layout.column: 1
                 Layout.row: 4
-                Layout.preferredWidth: 40
-                id: duration
-                text: "1"
-                selectByMouse: true
+                TextField {
+                    Layout.preferredWidth: 40
+                    id: duration
+                    text: "1"
+                    selectByMouse: true
+                }
+                CheckBox {
+                    id: stopAtOtherPattern
+                    text: qsTr("Stop")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Stop when another pattern is encountered")
+                    checked: false
+                }
+
             }
 
             RowLayout {
@@ -555,7 +566,7 @@ MuseScore {
                 ImageButton {
                     id: loadPattern
                     //enabled: (typeof positionInScore !== undefined) && (typeof positionInScore.summary !== undefined)
-                    enabled: (typeof positionInScore.summary === "object")
+                    enabled: (typeof positionInScore !== undefined)?(typeof positionInScore.summary === "object"):false
                     imageHeight: 25
                     imageSource: "upload.svg"
                     ToolTip.text: qsTr("Load from log")
@@ -1323,6 +1334,14 @@ MuseScore {
                 break;
             }
 
+            if (stopAtOtherPattern.checked && i>0) {
+                var localSummary=findSummaryText(cursor.segment, cursor.track);
+                if (localSummary) {
+                    console.log("Other pattern found at iteration "+i+" at tick "+tick);
+                    break;
+                }
+            }
+
             removeElement(cursor.element); // replace whatever we have by a rest
 
             var chordRest = cursor.element;
@@ -1332,6 +1351,7 @@ MuseScore {
                 console.error("could not find an element at cursor at i=" + i);
                 break;
             }
+            
 
             // ~~ push the notes and rests
             // score.startCmd(); //+DEBUG
@@ -1429,7 +1449,7 @@ MuseScore {
         //parseSummary("[3/8:2:0.5:1:A4:B5:1]");
         //parseSummary("[(14)/8:-4;0.5:2:XX,A4,YY:--:2]");
         // if (positionInScore && positionInScore.summary)
-        if (positionInScore.summary)
+        if (positionInScore && positionInScore.summary)
             parseSummary(positionInScore.summary.text);
     }
 
@@ -1671,7 +1691,7 @@ MuseScore {
     function findSummaryText(segment, eTrack) {
         var anns = segment.annotations;
         var staffText;
-        var eStaff=eTrack?Math.trunc(eTrack/4):0;
+        var eStaff=eTrack?(eTrack/4)| 0:0 ; // = trunc
         for (var ai = 0; ai < anns.length; ++ai) {
             console.log("  analysing " + anns[ai].text);
             console.log("  comparing with " + ("[" + anns[ai].text.slice(1, -1) + "]"));
@@ -1679,7 +1699,7 @@ MuseScore {
             
             // Rem: les STAFF_TEXT sont toujours la voix 1 => comparer les tracks ensemble ne fonctionnent pas
             // => on calcule un staffId
-            var aStaff = Math.trunc(anns[ai].track/4);
+            var aStaff = (anns[ai].track/4) | 0; // = trunc
 
 		    console.log("  staff " + aStaff);
 

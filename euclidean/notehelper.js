@@ -18,6 +18,8 @@
 /*  - 15/3/23: v2.0.2 changeNote: set the pitch note (I guess I assumed it was already set by the calling function, but this is more generic now).
 /*  - 7/4/23: v2.0.2 buildPitchedNote: accepts note name with accidentals.
 /*  - 7/4/23: v2.0.2 buildPitchedNote: adds names to the built note in the `extname` object (so similar to #enrichNote).
+/*  - 5/07/23: v2.0.3 changeNote: better behaviour if we provide pitch and 1 tpc (tpc1 or tpc2) : deduce the other tpc.
+/*	- 26/08/23: v2.0.3 set TPC by note name (originally 1.0.6 in workoutbuilder)
 /*  - 03/06/24: v2.0.3 buildPitchedNote: allow for "b","#" as valid alteration signs (along with the unicode versiosns).
 
 /**********************************************/
@@ -170,8 +172,9 @@ function pitchToName(npitch, ntpc) {
     Recognized alterations are ♭♭, ♭, ♯♯, ♯ 
  
  * @return a structure with pitch/tpc information
-ret.pitch : the pitch of the note
-ret.tpc: the value for the note tpc1 and tpc2
+    ret.pitch : the pitch of the note
+    ret.tpc2: the value for the note tpc1 and tpc2extname
+    ret.extname: the note name
  */
 function buildPitchedNote(noteName, accidental) {
 
@@ -189,20 +192,20 @@ function buildPitchedNote(noteName, accidental) {
         var sa=noteName.slice(1,-1);
         switch (sa) {
             case "\u266D\u266D": 
-            case: "bb":
+            case "bb":
                 a="FLAT2";
                 break;
             case "\u266D": 
-            case: "b":
+            case "b":
                 a="FLAT";
                 break;
             case "\u266F": 
-            case: "#":
+            case "#":
                 a="SHARP";
                 break;
             case "\u266F\u266F": 
-            case: "##":
-            case: "x":
+            case "##":
+            case "x":
                 a="SHARP2";
                 break;
             default : 
@@ -225,6 +228,7 @@ function buildPitchedNote(noteName, accidental) {
                 }
             }
         }
+        
     }
 
     // tpc
@@ -235,7 +239,7 @@ function buildPitchedNote(noteName, accidental) {
     for (var i = 0; i < tpcs.length; i++) {
         var t = tpcs[i];
         if (name == t.raw && a == t.accidental) {
-            console.log("found with "+t.name);
+            //console.log("found with "+t.name);
             tpc = t;
             break;
         }
@@ -262,7 +266,7 @@ function buildPitchedNote(noteName, accidental) {
     // pitch
     //console.log("--" + tpc.pitch + "--");
     var pitch = (octave + 1) * 12 + ((tpc.pitch !== undefined) ? tpc.pitch : 0);
-    
+
     var extname = pitchToName(pitch, tpc.tpc);
 
 
@@ -275,8 +279,6 @@ function buildPitchedNote(noteName, accidental) {
         
         "extname": extname
     };
-    
-    
 
     return recompose;
 }
@@ -480,6 +482,19 @@ function changeNote(note, toNote) {
         note.tpc1 = toNote.tpc1;
         note.tpc2 = toNote.tpc2;
 
+
+    } else if (toNote.tpc1 !== undefined) {
+		// tpc1 is defined ==> using it and align tpc2
+        var dtpc = note.tpc2 - note.tpc1;
+        note.tpc1 = toNote.tpc1;
+        note.tpc2 = toNote.tpc1 + dtpc;
+
+    } else if (toNote.tpc2 !== undefined) {
+		// tpc2 is defined ==> using it and align tpc1
+        var dtpc = note.tpc2 - note.tpc1;
+        note.tpc1 = toNote.tpc2 - dtpc;
+        note.tpc2 = toNote.tpc2 + dtpc;
+
     } else {
 		// tpc1 and tpc2 are not defined ==> computing them
 
@@ -503,14 +518,24 @@ function changeNote(note, toNote) {
 
         }
 
-        var tpc = getPreferredTpc(note.tpc1, sharp_mode);
-        if (tpc !== null)
-            note.tpc1 = tpc;
 
+        var tpc1=null;
+        if (toNote.name)
+            tpc1=getPreferredTpcForName(note.tpc1,toNote.name);
+        if (tpc1 === null)
+            tpc1 = getPreferredTpc(note.tpc1, sharp_mode);
+
+        if (tpc1 !== null)
+            note.tpc1 = tpc1;
+
+        var tpc2=null;
         //delta = toNote.pitch - 60;
-        var tpc = getPreferredTpc(note.tpc2, sharp_mode);
-        if (tpc !== null)
-            note.tpc2 = tpc;
+        if (toNote.name)
+            tpc2=getPreferredTpcForName(note.tpc2,toNote.name);
+        if (tpc2 === null)
+            tpc2 = getPreferredTpc(note.tpc2, sharp_mode);
+        if (tpc2 !== null)
+            note.tpc2 = tpc2;
 
     }
 
@@ -535,6 +560,27 @@ function getPreferredTpc(tpc, sharp_mode) {
     return null;
 
 }
+
+function getPreferredTpcForName(tpc, noteName) {
+    var delta = tpcToPitch(tpc);
+    
+    console.log("-->Searching tpc pitch "+delta+" and note "+noteName);
+
+    
+    // On ne garde que les tpcs correspondant au nom de la note souhaitée
+    for (var i = 0; i < tpcs.length; i++) {
+        if (tpcs[i].raw === noteName) {
+            console.log("  analysing "+JSON.stringify(tpcs[i]));
+            if (tpcs[i].pitch === delta) {
+                return tpcs[i].tpc;
+            }
+        }
+    }
+
+    return null;
+
+}
+
 
 var pitchnotes = ['C', 'C', 'D', 'D', 'E', 'F', 'F', 'G', 'G', 'A', 'A', 'B'];
 
@@ -1284,16 +1330,21 @@ function tpcClass(tpc, name, accidental) {
 
         var a = name.substring(1, name.len);
         switch (a) {
-        case '\u266F\u266F':
+        case '\u266F\u266F': 
+        case '##': 
+		case 'x':
             this.accidental = 'SHARP2';
             break;
         case '\u266F':
+        case '#':
             this.accidental = 'SHARP';
             break;
         case '\u266D\u266D':
+        case 'bb':
             this.accidental = 'FLAT2';
             break;
         case '\u266D':
+        case 'b':
             this.accidental = 'FLAT';
             break;
         default:

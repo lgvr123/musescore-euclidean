@@ -40,7 +40,7 @@ You can parametrize what to play on the "on-beats" (i.e. the "played" steps) and
 #### Source
 The plugin can use 3 sources for defining the notes to play:
 1. the selection in the score
-2. the clipboard (what you copied through CTRL/CMD+C)
+2. the clipboard (what you copied through CTRL/CMD+C) ***⚠ Not available in the MU4.x version***
 3. the manual indication of the note to play
 
 #### On-beats
@@ -78,11 +78,13 @@ However the plugin does not detect any change in the clipboard. In order to refr
 Download the [last stable version](https://github.com/lgvr123/musescore-euclidian/releases)
 For installation see [Plugins](https://musescore.org/en/handbook/3/plugins).
 
+* For MuseScore 3.6.2, 3.7, MU4.0-4.3 use the "Compatibility" asset.
+
+* For MuseScore 4.4 or higher, use the "4.5" asset.
+
 ### Remark
 The whole zip content (so the `euclidean\ ` folder) must be unzipped **as such** in your plugin folder. <br/>
 
-## Support of MS4.0
-Supported, although the User Interface does not look very nice in this version.
 
 ## Sponsorship ##
 If you appreciate my plugins, you can support and sponsor their development on the following platforms:

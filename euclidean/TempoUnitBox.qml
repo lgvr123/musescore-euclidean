@@ -12,6 +12,7 @@ import QtQuick.Layouts 1.3
  * Versions history:
  * 1.0.0 Version initiale tirée de TapTempo
  * 1.0.1 New Binding mechanism
+ * 1.1.0 Compatibility wit MU4.5
  */
 
 RowLayout {
@@ -24,8 +25,6 @@ RowLayout {
     // control
     property var sizeMult: 1.5
 
-    property var buttonColor: "#21be2b"
-    property var buttonDownColor: "#17a81a"
 
     // returned values
     property real unitDuration: 1
@@ -162,22 +161,62 @@ RowLayout {
             console.log("Ending up with unitDuration = %1".arg(JSON.stringify(unitDuration)));
         }
 
-        implicitHeight: 40 * sizeMult
+        implicitHeight: 30 * sizeMult
         implicitWidth: 90
 
         font.family: 'MScore Text'
-        font.pointSize: 10 * sizeMult
+        font.pointSize: 15 * sizeMult
+        // color: blue
 
         delegate: ItemDelegate {
+            width: lstMult.width
             contentItem: Text {
                 // text: modelData[lstMult.textRole] // "modelData" fonctionne pour un modèle qui est une Array, "model" pour un modèle qui est un ListModel
                 text: model[lstMult.textRole]
                 verticalAlignment: Text.AlignVCenter
+                // anchors.verticalCenter: parent.verticalCenter
+                color: (mscoreMajorVersion >= 4)? ui.theme.fontPrimaryColor : sysActivePalette.text
+                opacity: (control.enabled)?1:0.6
                 font: lstMult.font
             }
             highlighted: multipliers.highlightedIndex === index
 
         }
+
+        contentItem: Text {
+
+            text: lstMult.displayText
+            anchors.verticalCenter: parent.verticalCenter
+            color: (mscoreMajorVersion >= 4)? ui.theme.fontPrimaryColor : sysActivePalette.text
+            opacity: (lstMult.enabled)?1:0.6
+
+            font: lstMult.font
+
+            
+            leftPadding: 10
+            rightPadding: 10 + lstMult.indicator.width + lstMult.spacing
+            topPadding: 5
+            bottomPadding: 5
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        indicator: Canvas {
+            x: lstMult.width - width - lstMult.rightPadding
+            y: lstMult.topPadding + (lstMult.availableHeight - height) / 2
+            width: 8
+            height: 5
+            contextType: "2d"
+
+            onPaint: {
+                context.reset();
+                context.moveTo(0, 0);
+                context.lineTo(width, 0);
+                context.lineTo(width / 2, height);
+                context.closePath();
+                context.fillStyle = (mscoreMajorVersion >= 4)? ui.theme.fontPrimaryColor : sysActivePalette.text;
+                context.fill();
+            }
+        } 
         
     }
     

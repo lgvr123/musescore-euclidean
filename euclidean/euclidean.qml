@@ -21,7 +21,7 @@ import "selectionhelper.js" as SelHelper
 /*  1.2.0 : Bug: The pattern summary was always written on the first staff.
 /*  1.2.0 : CR: Allow ascii symbols for alterations in the pattern summaries (noteHelper 2.0.3)
 /*  1.2.0 : CR: Option to stop the pattern when pattern summary is encountered
-
+/*  1.2.0 : Compatibility mode with MU4.5
 
 Issues : 
 * matching of accidentals in the UseAsRest: a E# is matched with a F, a Gb is matched with a F#
@@ -30,15 +30,17 @@ Issues :
 /**********************************************/
 MuseScore {
     menuPath: "Plugins." + qsTr("Euclidean Rhythm")
-    version: "1.1.0"
+    version: "1.2.0"
     requiresScore: true
     description: qsTr("Create an euclidean rhythm")
     pluginType: "dialog"
 
     id: mainWindow
+    //4.4 title: "Euclidean Rhythm"
+    //4.4 thumbnailName: "logo.png"
 
     Component.onCompleted: {
-        if (mscoreMajorVersion >= 4) {
+        if (mscoreMajorVersion >= 4 && mscoreMajorVersion<=3) {
             mainWindow.title = qsTr("Euclidean Rhythm");
             mainWindow.thumbnailName = "logo.png";
             // mainWindow.categoryCode = "batch-processing";
@@ -510,7 +512,7 @@ MuseScore {
             RowLayout {
                 Layout.column: 1
                 Layout.row: 3
-                ComboBox {
+                CompatibleComboBox {
                     model: durationmult
                     id: mult
                     textRole: "text"
@@ -566,7 +568,7 @@ MuseScore {
                 ImageButton {
                     id: loadPattern
                     //enabled: (typeof positionInScore !== undefined) && (typeof positionInScore.summary !== undefined)
-                    enabled: (typeof positionInScore !== undefined)?(typeof positionInScore.summary === "object"):false
+                    enabled: ((typeof positionInScore !== "undefined") && (positionInScore!==null))?(typeof positionInScore.summary === "object"):false
                     imageHeight: 25
                     imageSource: "upload.svg"
                     ToolTip.text: qsTr("Load from log")
@@ -653,7 +655,7 @@ MuseScore {
                             ButtonGroup.group: source
                         }
 
-                        ComboBox {
+                        CompatibleComboBox {
                             id: adhocNote
                             model: allnotes
                             textRole: "name"
@@ -758,7 +760,7 @@ MuseScore {
                                 ButtonGroup.group: off
                             }
 
-                            ComboBox {
+                            CompatibleComboBox {
                                 model: allnotes
                                 textRole: "name"
                                 id: offbeatNote
@@ -810,13 +812,20 @@ MuseScore {
             alignment: Qt.AlignRight
             background.opacity: 0 // hide default white background
 
-            standardButtons: DialogButtonBox.Cancel
+            // standardButtons: DialogButtonBox.Cancel
 
-            Button {
+
+            CompatibleButton {
                 id: ok
                 enabled: (patternBeats.text !== "") && (patternSize.text !== "")
                 text: qsTr("Create")
                 DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+            }
+
+            CompatibleButton {
+                id: cancel
+                text: qsTr("Cancel")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
             }
 
             onAccepted: {

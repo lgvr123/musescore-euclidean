@@ -19,7 +19,11 @@ import "selectionhelper.js" as SelHelper
 /*  1.2.0 : Allow the use the fill mode in freeRhythm
 /*  1.2.0 : Bug: the pattern does not start at the correct position when a ChordRest is not defined at the same position on the track 0
 /*  1.2.0 : Bug: The pattern summary was always written on the first staff.
-/*  1.2.0 : CR: Allow ascii symbols for alterations in the pattern summaries
+/*  1.2.0 : CR: Allow ascii symbols for alterations in the pattern summaries (noteHelper 2.0.3)
+/*  1.2.0 : CR: Option to stop the pattern when pattern summary is encountered
+/*  1.2.0 : Compatibility mode with MU4.5
+
+TODO: fenêtre modale ? 
 
 
 Issues : 
@@ -29,15 +33,17 @@ Issues :
 /**********************************************/
 MuseScore {
     menuPath: "Plugins." + qsTr("Euclidean Rhythm")
-    version: "1.1.0"
+    version: "1.2.0"
     requiresScore: true
-    description: qsTr("Create an euclidean rhythm")
+    description: qsTr("Create an euclidean rhythm. MU4.5 version")
     pluginType: "dialog"
 
     id: mainWindow
-
-    Component.onCompleted: {
-        if (mscoreMajorVersion >= 4) {
+    //4.4 title: "Euclidean Rhythm"
+    //4.4 thumbnailName: "logo.png"
+    
+    Component.onCompleted : {
+        if (mscoreMajorVersion >= 4 && mscoreMajorVersion<=3) {
             mainWindow.title = qsTr("Euclidean Rhythm");
             mainWindow.thumbnailName = "logo.png";
             // mainWindow.categoryCode = "batch-processing";
@@ -509,7 +515,7 @@ MuseScore {
             RowLayout {
                 Layout.column: 1
                 Layout.row: 3
-                ComboBox {
+                CompatibleComboBox {
                     model: durationmult
                     id: mult
                     textRole: "text"
@@ -537,13 +543,23 @@ MuseScore {
                 Layout.row: 4
                 text: qsTr("Repeats") + ":"
             }
-            TextField {
+            RowLayout {
                 Layout.column: 1
                 Layout.row: 4
+                TextField {
                 Layout.preferredWidth: 40
                 id: duration
                 text: "1"
                 selectByMouse: true
+            }
+                CheckBox {
+                    id: stopAtOtherPattern
+                    text: qsTr("Stop")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Stop when another pattern is encountered")
+                    checked: false
+                }
+
             }
 
             RowLayout {
@@ -555,7 +571,7 @@ MuseScore {
                 ImageButton {
                     id: loadPattern
                     //enabled: (typeof positionInScore !== undefined) && (typeof positionInScore.summary !== undefined)
-                    enabled: (typeof positionInScore.summary === "object")
+                    enabled: ((typeof positionInScore !== "undefined") && (positionInScore!==null))?(typeof positionInScore.summary === "object"):false
                     imageHeight: 25
                     imageSource: "upload.svg"
                     ToolTip.text: qsTr("Load from log")
@@ -642,7 +658,7 @@ MuseScore {
                             ButtonGroup.group: source
                         }
 
-                        ComboBox {
+                        CompatibleComboBox {
                             id: adhocNote
                             model: allnotes
                             textRole: "name"
@@ -686,7 +702,7 @@ MuseScore {
                             RadioButton {
                                 id: cycleNotes
                                 text: qsTr("Cycle accross selection from")
-                                enabled: /*(clipboard.length > 1 && useClipboard.checked)*/ || (selection.length > 1 && useSelection.checked)
+                                enabled: /*(clipboard.length > 1 && useClipboard.checked) ||*/ (selection.length > 1 && useSelection.checked)
                                 ButtonGroup.group: on
                             }
                             SpinBox {
@@ -735,7 +751,7 @@ MuseScore {
                         RadioButton {
                             id: useOffbeatSecond
                             text: qsTr("Second: %1").arg(notesToText(nnotes(2)))
-                            enabled: useOffbeatRest.enabled && (useFirst.checked) && (/*lipboard.length > 1 && useClipboard.checked) ||*/selection.length > 1 && useSelection.checked))
+                            enabled: useOffbeatRest.enabled && (useFirst.checked) && (/*(clipboard.length > 1 && useClipboard.checked) ||*/(selection.length > 1 && useSelection.checked))
                             ButtonGroup.group: off
                         }
 
@@ -747,7 +763,7 @@ MuseScore {
                                 ButtonGroup.group: off
                             }
 
-                            ComboBox {
+                            CompatibleComboBox {
                                 model: allnotes
                                 textRole: "name"
                                 id: offbeatNote
@@ -799,13 +815,20 @@ MuseScore {
             alignment: Qt.AlignRight
             background.opacity: 0 // hide default white background
 
-            standardButtons: DialogButtonBox.Cancel
+            // standardButtons: DialogButtonBox.Cancel
 
-            Button {
+
+            CompatibleButton {
                 id: ok
                 enabled: (patternBeats.text !== "") && (patternSize.text !== "")
                 text: qsTr("Create")
                 DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+            }
+
+            CompatibleButton {
+                id: cancel
+                text: qsTr("Cancel")
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
             }
 
             onAccepted: {
@@ -856,7 +879,7 @@ MuseScore {
     }
 
     // Signal onClosing sur la fenêtre parent
-    Connections {
+    /*Connections {
         target: mainWindow.parent.Window.window
         onClosing: {
             console.log("Saving free pattern to stettings");
@@ -866,7 +889,7 @@ MuseScore {
             }
             settings.freePattern = pArr;
         }
-    }
+    }*/ // 4.5
 
     // Palette for nice color management
     SystemPalette {
@@ -891,8 +914,8 @@ MuseScore {
 
     MessageDialog {
         id: errorDialog
-        //icon: StandardIcon.Warning
-        standardButtons: StandardButton.Ok
+        //icon: StandardIcon.Warning //4.5
+        //standardButtons: StandardButton.Ok
         title: qsTr('Warning')
         text: ""
     }
@@ -972,6 +995,7 @@ MuseScore {
             }
         }
 
+        
         return summary;
 
     }
@@ -1326,6 +1350,14 @@ function retrieveClipboard() {
                 break;
             }
 
+            if (stopAtOtherPattern.checked && i>0) {
+                var localSummary=findSummaryText(cursor.segment, cursor.track);
+                if (localSummary) {
+                    console.log("Other pattern found at iteration "+i+" at tick "+tick);
+                    break;
+                }
+            }
+
             removeElement(cursor.element); // replace whatever we have by a rest
 
             var chordRest = cursor.element;
@@ -1335,6 +1367,7 @@ function retrieveClipboard() {
                 console.error("could not find an element at cursor at i=" + i);
                 break;
             }
+
 
             // ~~ push the notes and rests
             // score.startCmd(); //+DEBUG
@@ -1432,7 +1465,7 @@ function retrieveClipboard() {
         //parseSummary("[3/8:2:0.5:1:A4:B5:1]");
         //parseSummary("[(14)/8:-4;0.5:2:XX,A4,YY:--:2]");
         // if (positionInScore && positionInScore.summary)
-        if (positionInScore.summary)
+        if (positionInScore && positionInScore.summary)
             parseSummary(positionInScore.summary.text);
     }
 
@@ -1674,7 +1707,7 @@ function retrieveClipboard() {
     function findSummaryText(segment, eTrack) {
         var anns = segment.annotations;
         var staffText;
-        var eStaff=eTrack?Math.trunc(eTrack/4):0;
+        var eStaff=eTrack?(eTrack/4)| 0:0 ; // = trunc
         for (var ai = 0; ai < anns.length; ++ai) {
             console.log("  analysing " + anns[ai].text);
             console.log("  comparing with " + ("[" + anns[ai].text.slice(1, -1) + "]"));
@@ -1682,7 +1715,7 @@ function retrieveClipboard() {
             
             // Rem: les STAFF_TEXT sont toujours la voix 1 => comparer les tracks ensemble ne fonctionnent pas
             // => on calcule un staffId
-            var aStaff = Math.trunc(anns[ai].track/4);
+            var aStaff = (anns[ai].track/4) | 0; // = trunc
 
 		    console.log("  staff " + aStaff);
 
